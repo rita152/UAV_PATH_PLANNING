@@ -6,9 +6,16 @@ import numpy as np
 from matplotlib import pyplot as plt
 import os
 import pickle as pkl
-shoplistfile = '/home/zp/vscode_projects/path planning/MASAC_new1'  #保存文件数据所在文件的文件名
-shoplistfile_test = '/home/zp/vscode_projects/path planning/MASAC_d_test2'  #保存文件数据所在文件的文件名
-shoplistfile_test1 = '/home/zp/vscode_projects/path planning/MASAC_compare'  #保存文件数据所在文件的文件名
+
+# 获取项目根目录
+PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+# 创建输出目录
+OUTPUT_DIR = os.path.join(PROJECT_ROOT, 'output')
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+shoplistfile = os.path.join(OUTPUT_DIR, 'MASAC_new1')  #保存文件数据所在文件的文件名
+shoplistfile_test = os.path.join(OUTPUT_DIR, 'MASAC_d_test2')  #保存文件数据所在文件的文件名
+shoplistfile_test1 = os.path.join(OUTPUT_DIR, 'MASAC_compare')  #保存文件数据所在文件的文件名
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 N_Agent=1
 M_Enemy=1
@@ -276,9 +283,9 @@ def run(env):
                     all_ep_r1[k].append(reward_totle1)
                     if episode % 20 == 0 and episode > 200:#保存神经网络参数
                         save_data = {'net': actors[0].action_net.state_dict(), 'opt': actors[0].optimizer.state_dict()}
-                        torch.save(save_data, "/home/zp/vscode_projects/path planning/Path_SAC_actor_L1.pth")
+                        torch.save(save_data, os.path.join(OUTPUT_DIR, "Path_SAC_actor_L1.pth"))
                         save_data = {'net': actors[1].action_net.state_dict(), 'opt': actors[1].optimizer.state_dict()}
-                        torch.save(save_data, "/home/zp/vscode_projects/path planning/Path_SAC_actor_F1.pth")
+                        torch.save(save_data, os.path.join(OUTPUT_DIR, "Path_SAC_actor_F1.pth"))
             all_ep_r_mean = np.mean((np.array(all_ep_r)), axis=0)
             all_ep_r_std = np.std((np.array(all_ep_r)), axis=0)
             all_ep_L_mean = np.mean((np.array(all_ep_r0)), axis=0)
@@ -322,10 +329,10 @@ def run(env):
     else:
         print('SAC测试中...')
         aa = Actor()
-        checkpoint_aa = torch.load("/home/zp/vscode_projects/path planning/Path_SAC_actor_L1.pth")
+        checkpoint_aa = torch.load(os.path.join(OUTPUT_DIR, "Path_SAC_actor_L1.pth"))
         aa.action_net.load_state_dict(checkpoint_aa['net'])
         bb = Actor()
-        checkpoint_bb = torch.load("/home/zp/vscode_projects/path planning/Path_SAC_actor_F1.pth")
+        checkpoint_bb = torch.load(os.path.join(OUTPUT_DIR, "Path_SAC_actor_F1.pth"))
         bb.action_net.load_state_dict(checkpoint_bb['net'])
         action = np.zeros((N_Agent+M_Enemy, action_number))
         win_times = 0

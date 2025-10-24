@@ -6,6 +6,7 @@ from gym import spaces
 import math
 import random
 import pygame
+import os
 from assignment.components import player
 from assignment import tools
 from assignment.components import info
@@ -29,9 +30,11 @@ class RlGame(gym.Env):
 
             pygame.display.set_caption("基于深度强化学习的空战场景无人机路径规划软件")
 
-            self.GRAPHICS = tools.load_graphics('/home/zp/vscode_projects/path planning/assignment/source/image')
+            # 获取项目根目录
+            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            self.GRAPHICS = tools.load_graphics(os.path.join(project_root, 'assignment', 'source', 'image'))
 
-            self.SOUND = tools.load_sound('/home/zp/vscode_projects/path planning/assignment/source/music')
+            self.SOUND = tools.load_sound(os.path.join(project_root, 'assignment', 'source', 'music'))
             self.clock = pygame.time.Clock()
             self.mouse_pos=(100,100)
             pygame.time.set_timer(C.CREATE_ENEMY_EVENT, C.ENEMY_MAKE_TIME)
