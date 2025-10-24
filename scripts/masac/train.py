@@ -17,9 +17,10 @@ import argparse
 
 # 导入MASAC模块
 from algorithm.masac import MASACTrainer
-# 导入配置加载器和种子管理器
+# 导入配置加载器、种子管理器和设备管理器
 from utils.config_loader import ConfigLoader
 from utils.seed_utils import setup_seeds
+from utils.device_utils import setup_device
 
 # 设置环境变量
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
@@ -166,6 +167,7 @@ def get_training_config(yaml_config, env_params, env_info, output_dir):
         'test_episodes': yaml_config['training']['test_episodes'],
         'output_dir': output_dir,
         'seed_config': yaml_config.get('seed', {}),
+        'device_config': yaml_config.get('device', {}),  # 添加设备配置
     }
     return config
 
@@ -232,6 +234,12 @@ def main():
     
     # 加载配置
     yaml_config, env_params = load_config(args)
+    
+    # 设置计算设备
+    print(f"\n{'='*60}")
+    print(f"🖥️  计算设备设置")
+    print(f"{'='*60}")
+    device = setup_device(yaml_config)
     
     # 设置随机种子
     print(f"\n{'='*60}")

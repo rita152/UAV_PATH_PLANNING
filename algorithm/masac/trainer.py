@@ -7,6 +7,7 @@ from .agent import Actor, Critic, Entropy
 from .buffer import Memory
 from .noise import Ornstein_Uhlenbeck_Noise
 from utils.seed_utils import get_episode_seed, set_seed
+from utils.device_utils import get_device
 
 
 class MASACTrainer:
@@ -51,7 +52,11 @@ class MASACTrainer:
         self.max_episodes = config.get('max_episodes', 500)
         self.max_steps = config.get('max_steps', 1000)
         
-        # 初始化智能体
+        # 获取计算设备
+        device_config = config.get('device_config', {})
+        self.device = get_device(device_config) if device_config else torch.device('cpu')
+        
+        # 初始化智能体（传入设备）
         total_agents = self.n_leaders + self.n_followers
         self.actors = [
             Actor(
@@ -59,7 +64,8 @@ class MASACTrainer:
                 self.action_dim,
                 self.max_action,
                 self.min_action,
-                lr=config.get('policy_lr', 1e-3)
+                lr=config.get('policy_lr', 1e-3),
+                device=self.device
             ) for _ in range(total_agents)
         ]
         
@@ -68,14 +74,16 @@ class MASACTrainer:
                 self.state_dim * total_agents,
                 self.action_dim,
                 lr=config.get('value_lr', 3e-3),
-                tau=config.get('tau', 1e-2)
+                tau=config.get('tau', 1e-2),
+                device=self.device
             ) for _ in range(total_agents)
         ]
         
         self.entropies = [
             Entropy(
                 target_entropy=config.get('target_entropy', -0.1),
-                lr=config.get('q_lr', 3e-4)
+                lr=config.get('q_lr', 3e-4),
+                device=self.device
             ) for _ in range(total_agents)
         ]
         
@@ -170,10 +178,11 @@ class MASACTrainer:
         b_r = batch[:, -state_dim_total - total_agents:-state_dim_total]
         b_s_ = batch[:, -state_dim_total:]
         
-        b_s = torch.FloatTensor(b_s)
-        b_a = torch.FloatTensor(b_a)
-        b_r = torch.FloatTensor(b_r)
-        b_s_ = torch.FloatTensor(b_s_)
+        # 将数据移到设备上（CPU或GPU）
+        b_s = torch.FloatTensor(b_s).to(self.device)
+        b_a = torch.FloatTensor(b_a).to(self.device)
+        b_r = torch.FloatTensor(b_r).to(self.device)
+        b_s_ = torch.FloatTensor(b_s_).to(self.device)
         
         # 更新每个智能体
         for i in range(total_agents):

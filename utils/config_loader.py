@@ -174,6 +174,12 @@ class ConfigLoader:
         config['seed'].setdefault('base_seed', 42)
         config['seed'].setdefault('use_episode_seed', True)
         
+        # 设备默认值
+        if 'device' not in config:
+            config['device'] = {}
+        config['device'].setdefault('use_cuda', True)
+        config['device'].setdefault('cuda_device', 0)
+        
         return config
     
     def to_training_config(self, config: Dict[str, Any]) -> Dict[str, Any]:

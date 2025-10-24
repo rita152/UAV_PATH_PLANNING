@@ -56,4 +56,9 @@ seed:
   base_seed: 42         # 基础种子值
   use_episode_seed: true  # 是否为每轮训练使用不同种子
 
+# 设备配置
+device:
+  use_cuda: true        # 是否使用CUDA (如果可用)
+  cuda_device: 0        # CUDA设备ID (默认使用GPU 0)
+
 

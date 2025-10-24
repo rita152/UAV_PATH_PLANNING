@@ -4,6 +4,7 @@ MASAC测试器
 import torch
 import numpy as np
 from .agent import Actor
+from utils.device_utils import get_device
 
 
 class MASACTester:
@@ -39,14 +40,19 @@ class MASACTester:
         self.test_episodes = config.get('test_episodes', 100)
         self.max_steps = config.get('max_steps', 1000)
         
-        # 初始化Actor（仅用于测试）
+        # 获取计算设备
+        device_config = config.get('device_config', {})
+        self.device = get_device(device_config) if device_config else torch.device('cpu')
+        
+        # 初始化Actor（仅用于测试，传入设备）
         total_agents = self.n_leaders + self.n_followers
         self.actors = [
             Actor(
                 self.state_dim,
                 self.action_dim,
                 self.max_action,
-                self.min_action
+                self.min_action,
+                device=self.device
             ) for _ in range(total_agents)
         ]
     
@@ -62,7 +68,8 @@ class MASACTester:
         for i, actor in enumerate(self.actors):
             path = os.path.join(output_dir, f'actor_{i}.pth')
             if os.path.exists(path):
-                checkpoint = torch.load(path)
+                # 加载模型到正确的设备
+                checkpoint = torch.load(path, map_location=self.device)
                 actor.action_net.load_state_dict(checkpoint['net'])
                 print(f"加载模型: {path}")
             else:

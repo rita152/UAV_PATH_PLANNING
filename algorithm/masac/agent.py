@@ -6,7 +6,7 @@ from .model import ActorNet, CriticNet
 class Actor:
     """Actor智能体，负责选择动作"""
     
-    def __init__(self, state_dim, action_dim, max_action, min_action, lr=1e-3):
+    def __init__(self, state_dim, action_dim, max_action, min_action, lr=1e-3, device=None):
         """
         初始化Actor
         
@@ -16,10 +16,13 @@ class Actor:
             max_action: 最大动作值
             min_action: 最小动作值
             lr: 学习率
+            device: 计算设备(CPU/GPU)
         """
         self.max_action = max_action
         self.min_action = min_action
-        self.action_net = ActorNet(state_dim, action_dim, max_action)
+        self.device = device if device is not None else torch.device('cpu')
+        
+        self.action_net = ActorNet(state_dim, action_dim, max_action).to(self.device)
         self.optimizer = torch.optim.Adam(self.action_net.parameters(), lr=lr)
 
     def choose_action(self, s):
@@ -32,29 +35,29 @@ class Actor:
         Returns:
             action: 选择的动作
         """
-        inputstate = torch.FloatTensor(s)
+        inputstate = torch.FloatTensor(s).to(self.device)
         mean, std = self.action_net(inputstate)
         dist = torch.distributions.Normal(mean, std)
         action = dist.sample()
         action = torch.clamp(action, self.min_action, self.max_action)
-        return action.detach().numpy()
+        return action.detach().cpu().numpy()
     
     def evaluate(self, s):
         """
         评估状态并返回动作和对数概率(用于策略更新)
         
         Args:
-            s: 状态
+            s: 状态（已在device上的tensor）
             
         Returns:
             action: 动作
             action_logprob: 动作对数概率
         """
-        inputstate = torch.FloatTensor(s)
-        mean, std = self.action_net(inputstate)
+        # s已经是在正确设备上的tensor，无需转换
+        mean, std = self.action_net(s)
         dist = torch.distributions.Normal(mean, std)
         noise = torch.distributions.Normal(0, 1)
-        z = noise.sample()
+        z = noise.sample().to(self.device)
         action = torch.tanh(mean + std * z)
         action = torch.clamp(action, self.min_action, self.max_action)
         action_logprob = dist.log_prob(mean + std * z) - torch.log(1 - action.pow(2) + 1e-6)
@@ -77,16 +80,19 @@ class Actor:
 class Entropy:
     """熵温度参数自动调节"""
     
-    def __init__(self, target_entropy=-0.1, lr=3e-4):
+    def __init__(self, target_entropy=-0.1, lr=3e-4, device=None):
         """
         初始化熵调节器
         
         Args:
             target_entropy: 目标熵值
             lr: 学习率
+            device: 计算设备(CPU/GPU)
         """
         self.target_entropy = target_entropy
-        self.log_alpha = torch.zeros(1, requires_grad=True)
+        self.device = device if device is not None else torch.device('cpu')
+        
+        self.log_alpha = torch.zeros(1, requires_grad=True, device=self.device)
         self.alpha = self.log_alpha.exp()
         self.optimizer = torch.optim.Adam([self.log_alpha], lr=lr)
 
@@ -105,7 +111,7 @@ class Entropy:
 class Critic:
     """Critic智能体，负责评估状态-动作对的价值"""
     
-    def __init__(self, state_dim, action_dim, lr=3e-3, tau=1e-2):
+    def __init__(self, state_dim, action_dim, lr=3e-3, tau=1e-2, device=None):
         """
         初始化Critic
         
@@ -114,10 +120,13 @@ class Critic:
             action_dim: 动作维度
             lr: 学习率
             tau: 软更新系数
+            device: 计算设备(CPU/GPU)
         """
         self.tau = tau
-        self.critic_v = CriticNet(state_dim, action_dim)
-        self.target_critic_v = CriticNet(state_dim, action_dim)
+        self.device = device if device is not None else torch.device('cpu')
+        
+        self.critic_v = CriticNet(state_dim, action_dim).to(self.device)
+        self.target_critic_v = CriticNet(state_dim, action_dim).to(self.device)
         self.target_critic_v.load_state_dict(self.critic_v.state_dict())
         self.optimizer = torch.optim.Adam(self.critic_v.parameters(), lr=lr, eps=1e-5)
         self.lossfunc = nn.MSELoss()
