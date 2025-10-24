@@ -24,8 +24,8 @@ class Info():
             self.state_labels.append((self.create_label('Game Over', size=60,flag='E',color=C.RED), (200, 300)))
             self.state_labels.append((self.create_label('{}胜！'.format(self.game_info['win']), size=60,color=C.RED), (500, 305)))
             self.state_labels.append((self.create_label('当前是第{}场游戏'.format(self.game_info['epsoide']),size=30),(300,150)))
-            self.state_labels.append((self.create_label('失败{}场'.format(self.game_info['enemy_win']),size=30),(300,190)))
-            self.state_labels.append((self.create_label('成功{}场'.format(self.game_info['hero_win']), size=30), (300, 230)))
+            self.state_labels.append((self.create_label('失败{}场'.format(self.game_info['follower_win']),size=30),(300,190)))
+            self.state_labels.append((self.create_label('成功{}场'.format(self.game_info['leader_win']), size=30), (300, 230)))
 
     def create_info_labels(self):
         self.info_labels=[]
@@ -44,8 +44,8 @@ class Info():
         if self.info_rect.collidepoint(mouse_pos):
             self.info_labels[0]=(self.create_label('通用信息',size=20,color=C.GREEN),(0,0))
             self.info_labels.append((self.create_label('当前是第{}场游戏'.format(self.game_info['epsoide']),size=20),(0,20)))
-            self.info_labels.append((self.create_label('失败赢{}场'.format(self.game_info['enemy_win']), size=20), (0, 40)))
-            self.info_labels.append((self.create_label('成功赢{}场'.format(self.game_info['hero_win']), size=20), (0, 60)))
+            self.info_labels.append((self.create_label('失败赢{}场'.format(self.game_info['follower_win']), size=20), (0, 40)))
+            self.info_labels.append((self.create_label('成功赢{}场'.format(self.game_info['leader_win']), size=20), (0, 60)))
         else:
             self.info_labels.clear()
             self.info_labels.append((self.create_label('通用信息', size=20), (0, 0)))

@@ -20,12 +20,12 @@ shoplistfile = os.path.join(OUTPUT_DIR, 'MASAC_new1')  #保存文件数据所在
 shoplistfile_test = os.path.join(OUTPUT_DIR, 'MASAC_d_test2')  #保存文件数据所在文件的文件名
 shoplistfile_test1 = os.path.join(OUTPUT_DIR, 'MASAC_compare')  #保存文件数据所在文件的文件名
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
-N_Agent=1
-M_Enemy=1
+N_Leader=1
+M_Follower=1
 RENDER=False
 TRAIN_NUM = 1
 TEST_EPIOSDE=100
-env = RlGame(n=N_Agent,m=M_Enemy,render=RENDER).unwrapped
+env = RlGame(n=N_Leader,m=M_Follower,render=RENDER).unwrapped
 state_number=7
 action_number=env.action_space.shape[0]
 max_action = env.action_space.high[0]
@@ -44,8 +44,8 @@ Switch=0
 def get_config():
     """获取训练和测试配置"""
     config = {
-        'n_agents': N_Agent,
-        'n_enemies': M_Enemy,
+        'n_agents': N_Leader,
+        'n_enemies': M_Follower,
         'state_dim': state_number,
         'action_dim': action_number,
         'max_action': max_action,
@@ -71,9 +71,9 @@ def run(env):
     
     if Switch==0:
         try:
-            assert M_Enemy == 1
+            assert M_Follower == 1
         except:
-            print('程序终止，被逮到~嘿嘿，哥们儿预判到你会犯错，这段程序中变量\'M_Enemy\'的值必须为1，请把它的值改为1。\n' 
+            print('程序终止，被逮到~嘿嘿，哥们儿预判到你会犯错，这段程序中变量\'M_Follower\'的值必须为1，请把它的值改为1。\n' 
                   '改为1之后程序一定会报错，这是因为组数越界，更改path_env.py文件中的跟随者无人机初始化个数；删除多余的\n'
                   '求距离函数，即变量dis_1_agent_0_to_3等，以及提到变量dis_1_agent_0_to_3等的地方；删除画无人机轨迹的\n'
                   '函数；删除step函数的最后一个返回值dis_1_agent_0_to_1；将player.py文件中的变量dt改为1；即可开始训练！\n'
