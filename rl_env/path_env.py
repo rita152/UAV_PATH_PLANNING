@@ -144,21 +144,39 @@ class RlGame(gym.Env):
         self.done = False
         self.leader_state = np.zeros((self.leader_num+self.follower_num,7))
         self.leader_α = np.zeros((self.leader_num, 1))
-        return np.array([[self.leader0.init_x/1000,self.leader0.init_y/1000,self.leader0.speed/30,self.leader0.theta*57.3/360
-                            ,self.goal0.init_x/1000, self.goal0.init_y/1000,0],
-                         [self.follower0.init_x / 1000, self.follower0.init_y / 1000, self.follower0.speed / 30,
-                         self.follower0.theta * 57.3 / 360
-                            , self.leader0.init_x/1000, self.leader0.init_y/1000,self.leader0.speed / 30],
-                        #  [self.follower1.init_x / 1000, self.follower1.init_y / 1000, self.follower1.speed / 30,
-                        #   self.follower1.theta * 57.3 / 360
-                        #      , self.leader0.init_x / 1000, self.leader0.init_y / 1000, self.leader0.speed / 30],
-                        #  [self.follower2.init_x / 1000, self.follower2.init_y / 1000, self.follower2.speed / 30,
-                        #   self.follower2.theta * 57.3 / 360
-                        #      , self.leader0.init_x / 1000, self.leader0.init_y / 1000, self.leader0.speed / 30],
-                        #  [self.follower3.init_x / 1000, self.follower3.init_y / 1000, self.follower3.speed / 30,
-                        #   self.follower3.theta * 57.3 / 360
-                        #      , self.leader0.init_x / 1000, self.leader0.init_y / 1000, self.leader0.speed / 30],
-                         ])#np.array([self.my_game.state.leader['leader0'].posx/1000,self.my_game.state.leader['leader0'].posy/1000,self.my_game.state.leader['leader0'].speed/2,self.my_game.state.leader['leader0'].theta*57.3/360])#np.zeros((self.n,2)).flatten()
+        
+        # 动态构建状态数组，支持任意数量的leader和follower
+        states = []
+        
+        # 添加所有leader的状态
+        for i in range(self.leader_num):
+            leader = self.leader[f'leader{i}']
+            leader_state = [
+                leader.init_x / 1000,
+                leader.init_y / 1000,
+                leader.speed / 30,
+                leader.theta * 57.3 / 360,
+                self.goal0.init_x / 1000,
+                self.goal0.init_y / 1000,
+                0  # obstacle flag
+            ]
+            states.append(leader_state)
+        
+        # 添加所有follower的状态
+        for i in range(self.follower_num):
+            follower = self.follower[f'follower{i}']
+            follower_state = [
+                follower.init_x / 1000,
+                follower.init_y / 1000,
+                follower.speed / 30,
+                follower.theta * 57.3 / 360,
+                self.leader0.init_x / 1000,
+                self.leader0.init_y / 1000,
+                self.leader0.speed / 30
+            ]
+            states.append(follower_state)
+        
+        return np.array(states)
 
     def step(self,action):
         dis_1_obs = np.zeros((self.leader_num, 1))
