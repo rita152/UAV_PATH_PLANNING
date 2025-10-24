@@ -207,11 +207,13 @@ def train(env, config, shoplistfile, env_params):
     plt.xlabel('Episode')
     plt.ylabel('Total reward')
     plt.legend()
+    
+    # 保存训练曲线图（新增功能）
     plt.savefig(os.path.join(config['output_dir'], 'training_curve.png'))
     print(f"训练曲线已保存到: {config['output_dir']}/training_curve.png")
     
-    # 可选：显示图表
-    # plt.show()
+    # 显示图表（与main_SAC.py保持一致）
+    plt.show()
     
     print(f"\n✅ 训练完成! 共{len(all_rewards)}轮")
     print(f"平均奖励: {np.mean(all_rewards):.2f}")
