@@ -18,8 +18,8 @@ class MASACTrainer:
         Args:
             env: 环境实例
             config: 配置字典，包含以下参数:
-                - n_agents: 智能体数量
-                - n_enemies: 敌方数量
+                - n_leaders: 领导者数量
+                - n_followers: 跟随者数量
                 - state_dim: 状态维度
                 - action_dim: 动作维度
                 - max_action: 最大动作值
@@ -38,8 +38,8 @@ class MASACTrainer:
         self.config = config
         
         # 提取配置参数
-        self.n_agents = config.get('n_agents', 1)
-        self.n_enemies = config.get('n_enemies', 1)
+        self.n_leaders = config.get('n_leaders', 1)
+        self.n_followers = config.get('n_followers', 1)
         self.state_dim = config.get('state_dim', 7)
         self.action_dim = config.get('action_dim', 2)
         self.max_action = config.get('max_action', 1.0)
@@ -51,7 +51,7 @@ class MASACTrainer:
         self.max_steps = config.get('max_steps', 1000)
         
         # 初始化智能体
-        total_agents = self.n_agents + self.n_enemies
+        total_agents = self.n_leaders + self.n_followers
         self.actors = [
             Actor(
                 self.state_dim,
@@ -146,7 +146,7 @@ class MASACTrainer:
         # 采样批次数据
         batch = self.memory.sample(self.batch_size)
         
-        total_agents = self.n_agents + self.n_enemies
+        total_agents = self.n_leaders + self.n_followers
         state_dim_total = self.state_dim * total_agents
         action_dim_total = self.action_dim * total_agents
         

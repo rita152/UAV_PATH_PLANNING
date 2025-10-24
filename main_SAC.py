@@ -44,8 +44,8 @@ Switch=0
 def get_config():
     """获取训练和测试配置"""
     config = {
-        'n_agents': N_Leader,
-        'n_enemies': M_Follower,
+        'n_leaders': N_Leader,
+        'n_followers': M_Follower,
         'state_dim': state_number,
         'action_dim': action_number,
         'max_action': max_action,

@@ -56,7 +56,7 @@ class Follower(GameSprite):
         #胜利标志位
         self.win=False
         #用于碰撞检测的变量
-        self.enemies=[]
+        self.followers=[]
         #创建子弹 精灵组，这是个组
         self.bullets=pygame.sprite.Group()
 
@@ -129,7 +129,7 @@ class Leader(GameSprite):
         #胜利标志位
         self.win=False
         #用于碰撞检测的变量
-        self.enemies=[]
+        self.followers=[]
         #创建子弹 精灵组，这是个组
         self.bullets=pygame.sprite.Group()
 
