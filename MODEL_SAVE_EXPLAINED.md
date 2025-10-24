@@ -4,6 +4,11 @@
 
 模型权重文件会在训练过程中自动保存，以便后续测试或恢复训练。
 
+**新的保存策略**: 
+- 所有Leader保存为1个文件: `leader.pth`
+- 所有Follower保存为1个文件: `follower.pth`
+- 无论有多少个follower，都只生成2个文件
+
 ---
 
 ## ⚙️ 保存配置
@@ -61,46 +66,62 @@ if episode % save_interval == 0 and episode > save_threshold:
 
 ## 📁 保存的文件
 
-### 文件命名规则
+### 文件命名规则（新机制）
 
 ```
 output/
-├── actor_0.pth       # 第1个智能体（Leader 0）
-├── actor_1.pth       # 第2个智能体（Follower 0）
-├── actor_2.pth       # 第3个智能体（Follower 1）
-└── ...
+├── leader.pth        # 所有Leader（1个文件）
+└── follower.pth      # 所有Follower（1个文件）
 ```
 
-**命名规则**: `actor_{agent_id}.pth`
+**优势**:
+- ✅ 文件数量固定（只有2个）
+- ✅ 易于管理和迁移
+- ✅ follower数量改变时仍可部分加载
+- ✅ 清晰的角色区分
 
-**智能体编号**:
-- Agent 0: Leader 0
-- Agent 1: Follower 0
-- Agent 2: Follower 1
-- ...
+**示例**:
+- 1 leader + 3 followers → 2个文件
+- 1 leader + 5 followers → 2个文件
+- 1 leader + 10 followers → 2个文件
 
 ### 文件内容
 
-每个 `.pth` 文件包含：
-
+**leader.pth 结构**:
 ```python
 {
-    'net': {
-        'in_to_y1.weight': Tensor(...),
-        'in_to_y1.bias': Tensor(...),
-        'y1_to_y2.weight': Tensor(...),
-        ...
-    },
-    'opt': {
-        'state': {...},
-        'param_groups': [...]
-    }
+    'models': [
+        {
+            'net': leader_0_network_params,  # Leader 0的网络参数
+            'opt': leader_0_optimizer_state   # Leader 0的优化器状态
+        },
+        # 如果有多个leader，继续添加...
+    ],
+    'n_leaders': 1  # Leader数量
+}
+```
+
+**follower.pth 结构**:
+```python
+{
+    'models': [
+        {
+            'net': follower_0_network_params,  # Follower 0的网络参数
+            'opt': follower_0_optimizer_state   # Follower 0的优化器状态
+        },
+        {
+            'net': follower_1_network_params,  # Follower 1的网络参数
+            'opt': follower_1_optimizer_state   # Follower 1的优化器状态
+        },
+        # 更多follower...
+    ],
+    'n_followers': 2  # Follower数量（例如2个）
 }
 ```
 
 **包含内容**:
-- `net`: 网络参数（权重和偏置）
-- `opt`: 优化器状态（用于恢复训练）
+- `models`: 模型列表（所有leader或所有follower）
+- `n_leaders` / `n_followers`: 数量信息（用于验证）
 
 ---
 
