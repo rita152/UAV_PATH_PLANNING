@@ -58,6 +58,8 @@ class Actor:
         action = torch.tanh(mean + std * z)
         action = torch.clamp(action, self.min_action, self.max_action)
         action_logprob = dist.log_prob(mean + std * z) - torch.log(1 - action.pow(2) + 1e-6)
+        # 对所有动作维度求和，得到总的log_prob
+        action_logprob = action_logprob.sum(dim=-1, keepdim=True)
         return action, action_logprob
 
     def learn(self, actor_loss):
