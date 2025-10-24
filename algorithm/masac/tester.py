@@ -117,6 +117,8 @@ class MASACTester:
         
         win_count = 0
         total_rewards = []
+        leader_rewards = []      # ✅ 新增：分离leader奖励
+        follower_rewards = []    # ✅ 新增：分离follower奖励
         total_steps = []
         formation_keeping_rates = []
         all_integral_V = []
@@ -125,9 +127,12 @@ class MASACTester:
         for episode in range(self.test_episodes):
             state = self.env.reset()
             episode_reward = 0
+            leader_episode_reward = 0      # ✅ 新增：leader奖励累计
+            follower_episode_reward = 0    # ✅ 新增：follower奖励累计
             step = 0
             integral_V = 0
             integral_U = 0
+            episode_team_counter = 0  # ✅ 新增：episode内的编队计数
             
             for step in range(self.max_steps):
                 # 选择动作（贪婪策略）
@@ -147,11 +152,22 @@ class MASACTester:
                 else:
                     next_state, reward, done, win, team_counter = step_result
                 
-                # 统计指标（与main_SAC.py保持一致）
-                integral_V += state[0][2]  # 累计速度作为飞行路程
-                integral_U += abs(actions[0]).sum()  # 累计动作的绝对值作为能量损耗
+                # ✅ 修复：统计指标
+                # 飞行路程（累计速度，恢复真实单位）
+                integral_V += state[0][2] * 30.0  # 恢复原始速度值
                 
-                episode_reward += reward.mean()
+                # ✅ 修复：能量损耗（统计所有智能体）
+                integral_U += np.abs(actions).sum()  # 所有智能体的动作
+                
+                # ✅ 修复：分离奖励统计
+                leader_episode_reward += reward[0, 0]  # leader的奖励
+                if self.n_followers > 0:
+                    follower_episode_reward += reward[1:, 0].mean()  # follower的平均奖励
+                episode_reward += reward.sum()  # 总奖励（所有智能体之和）
+                
+                # ✅ 修复：累计编队计数
+                episode_team_counter += team_counter
+                
                 state = next_state
                 
                 if render:
@@ -164,11 +180,17 @@ class MASACTester:
             
             # 记录统计信息
             total_rewards.append(episode_reward)
+            leader_rewards.append(leader_episode_reward)
+            follower_rewards.append(follower_episode_reward)
             total_steps.append(step + 1)
             all_integral_V.append(integral_V)
             all_integral_U.append(integral_U)
-            if step > 0:
-                formation_keeping_rates.append(team_counter / (step + 1))
+            
+            # ✅ 修复：编队保持率计算
+            if step > 0 and self.n_followers > 0:
+                # 正确公式：累计编队数 / (总步数 * follower数量)
+                formation_rate = episode_team_counter / ((step + 1) * self.n_followers)
+                formation_keeping_rates.append(formation_rate)
             
             print(f"测试轮次 {episode + 1}/{self.test_episodes}, "
                   f"奖励: {episode_reward:.2f}, 步数: {step + 1}, "
@@ -177,7 +199,9 @@ class MASACTester:
         # 计算统计结果
         results = {
             'success_rate': win_count / self.test_episodes,
-            'avg_reward': np.mean(total_rewards),
+            'total_avg_reward': np.mean(total_rewards),          # 所有智能体总奖励
+            'leader_avg_reward': np.mean(leader_rewards),        # ✅ 新增：leader平均奖励
+            'follower_avg_reward': np.mean(follower_rewards),    # ✅ 新增：follower平均奖励
             'std_reward': np.std(total_rewards),
             'avg_steps': np.mean(total_steps),
             'avg_formation_keeping': np.mean(formation_keeping_rates) if formation_keeping_rates else 0,
@@ -187,12 +211,14 @@ class MASACTester:
             'win_count': win_count
         }
         
-        # 打印测试结果（与main_SAC.py保持一致）
+        # 打印测试结果
         print("\n" + "="*50)
         print("测试结果汇总")
         print("="*50)
         print(f"任务完成率: {results['success_rate']*100:.2f}%")
-        print(f"平均奖励: {results['avg_reward']:.2f} ± {results['std_reward']:.2f}")
+        print(f"总平均奖励: {results['total_avg_reward']:.2f} ± {results['std_reward']:.2f}")
+        print(f"  - Leader奖励: {results['leader_avg_reward']:.2f}")
+        print(f"  - Follower奖励: {results['follower_avg_reward']:.2f}")
         print(f"平均飞行时间: {results['avg_steps']:.2f}")
         print(f"平均飞行路程: {results['avg_flight_distance']:.2f}")
         print(f"平均能量损耗: {results['avg_energy_consumption']:.2f}")
