@@ -50,4 +50,10 @@ noise:
   ou_noise: true        # 是否使用OU噪声
   noise_episodes: 20    # 添加噪声的轮数
 
+# 随机种子配置（用于实验复现）
+seed:
+  enabled: true         # 是否启用固定种子
+  base_seed: 42         # 基础种子值
+  use_episode_seed: true  # 是否为每轮训练使用不同种子
+
 

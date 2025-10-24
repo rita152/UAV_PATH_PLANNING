@@ -11,8 +11,9 @@ import argparse
 
 # 导入MASAC模块
 from algorithm.masac import MASACTrainer, MASACTester
-# 导入配置加载器
+# 导入配置加载器和种子管理器
 from utils.config_loader import ConfigLoader
+from utils.seed_utils import setup_seeds, SeedManager
 
 # 获取项目根目录
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -66,6 +67,12 @@ if args.test:
     Switch = 1
     print(f"⚙️  命令行参数覆盖: 测试模式")
 
+# 设置随机种子（在创建环境之前）
+print(f"\n{'='*60}")
+print(f"🎲 随机种子设置")
+print(f"{'='*60}")
+setup_seeds(yaml_config, episode=0)
+
 # 创建输出目录
 OUTPUT_DIR = os.path.join(PROJECT_ROOT, yaml_config['output']['output_dir'])
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -111,6 +118,7 @@ def get_config():
         'max_steps': EP_LEN,
         'test_episodes': TEST_EPIOSDE,
         'output_dir': OUTPUT_DIR,
+        'seed_config': yaml_config.get('seed', {}),  # 添加种子配置
     }
     return config
 

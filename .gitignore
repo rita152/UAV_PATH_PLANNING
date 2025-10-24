@@ -89,3 +89,7 @@ temp/
 *.bak
 *.backup
 
+
+# Training output
+output/
+*.pkl

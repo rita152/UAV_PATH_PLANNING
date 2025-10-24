@@ -6,6 +6,7 @@ import numpy as np
 from .agent import Actor, Critic, Entropy
 from .buffer import Memory
 from .noise import Ornstein_Uhlenbeck_Noise
+from utils.seed_utils import get_episode_seed, set_seed
 
 
 class MASACTrainer:
@@ -88,12 +89,26 @@ class MASACTrainer:
         self.noise = Ornstein_Uhlenbeck_Noise(
             mu=np.zeros((total_agents, self.action_dim))
         )
+        
+        # 获取种子配置
+        self.seed_config = config.get('seed_config', {})
+        self.use_seed = self.seed_config.get('enabled', False)
+        self.base_seed = self.seed_config.get('base_seed', 42)
+        self.use_episode_seed = self.seed_config.get('use_episode_seed', True)
     
     def train(self):
         """执行训练"""
         all_rewards = []
         
         for episode in range(self.max_episodes):
+            # 为每轮训练设置不同的种子
+            if self.use_seed and self.use_episode_seed:
+                episode_seed = get_episode_seed(self.base_seed, episode)
+                set_seed(episode_seed)
+                if episode == 0:
+                    print(f"🎲 Episode种子模式已启用")
+                elif episode % 50 == 0:  # 每50轮打印一次
+                    print(f"   Episode {episode}: seed={episode_seed}")
             state = self.env.reset()
             episode_reward = 0
             

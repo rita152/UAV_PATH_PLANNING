@@ -167,6 +167,13 @@ class ConfigLoader:
         config['noise'].setdefault('ou_noise', True)
         config['noise'].setdefault('noise_episodes', 20)
         
+        # 随机种子默认值
+        if 'seed' not in config:
+            config['seed'] = {}
+        config['seed'].setdefault('enabled', True)
+        config['seed'].setdefault('base_seed', 42)
+        config['seed'].setdefault('use_episode_seed', True)
+        
         return config
     
     def to_training_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
