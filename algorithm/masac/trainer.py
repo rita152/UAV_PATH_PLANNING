@@ -1,0 +1,240 @@
+"""
+MASAC训练器
+"""
+import torch
+import numpy as np
+from .agent import Actor, Critic, Entropy
+from .buffer import Memory
+from .noise import Ornstein_Uhlenbeck_Noise
+
+
+class MASACTrainer:
+    """MASAC算法训练器"""
+    
+    def __init__(self, env, config):
+        """
+        初始化训练器
+        
+        Args:
+            env: 环境实例
+            config: 配置字典，包含以下参数:
+                - n_agents: 智能体数量
+                - n_enemies: 敌方数量
+                - state_dim: 状态维度
+                - action_dim: 动作维度
+                - max_action: 最大动作值
+                - min_action: 最小动作值
+                - gamma: 折扣因子
+                - policy_lr: 策略学习率
+                - value_lr: 价值学习率
+                - q_lr: Q网络学习率
+                - tau: 软更新系数
+                - batch_size: 批次大小
+                - memory_capacity: 记忆库容量
+                - max_episodes: 最大训练轮数
+                - max_steps: 每轮最大步数
+        """
+        self.env = env
+        self.config = config
+        
+        # 提取配置参数
+        self.n_agents = config.get('n_agents', 1)
+        self.n_enemies = config.get('n_enemies', 1)
+        self.state_dim = config.get('state_dim', 7)
+        self.action_dim = config.get('action_dim', 2)
+        self.max_action = config.get('max_action', 1.0)
+        self.min_action = config.get('min_action', -1.0)
+        
+        self.gamma = config.get('gamma', 0.9)
+        self.batch_size = config.get('batch_size', 128)
+        self.max_episodes = config.get('max_episodes', 500)
+        self.max_steps = config.get('max_steps', 1000)
+        
+        # 初始化智能体
+        total_agents = self.n_agents + self.n_enemies
+        self.actors = [
+            Actor(
+                self.state_dim,
+                self.action_dim,
+                self.max_action,
+                self.min_action,
+                lr=config.get('policy_lr', 1e-3)
+            ) for _ in range(total_agents)
+        ]
+        
+        self.critics = [
+            Critic(
+                self.state_dim * total_agents,
+                self.action_dim,
+                lr=config.get('value_lr', 3e-3),
+                tau=config.get('tau', 1e-2)
+            ) for _ in range(total_agents)
+        ]
+        
+        self.entropies = [
+            Entropy(
+                target_entropy=config.get('target_entropy', -0.1),
+                lr=config.get('q_lr', 3e-4)
+            ) for _ in range(total_agents)
+        ]
+        
+        # 初始化记忆库
+        memory_capacity = config.get('memory_capacity', 20000)
+        memory_dims = 2 * self.state_dim * total_agents + \
+                     self.action_dim * total_agents + total_agents
+        self.memory = Memory(memory_capacity, memory_dims)
+        
+        # 初始化OU噪声
+        self.noise = Ornstein_Uhlenbeck_Noise(
+            mu=np.zeros((total_agents, self.action_dim))
+        )
+    
+    def train(self):
+        """执行训练"""
+        all_rewards = []
+        
+        for episode in range(self.max_episodes):
+            state = self.env.reset()
+            episode_reward = 0
+            
+            for step in range(self.max_steps):
+                # 选择动作
+                actions = np.array([
+                    self.actors[i].choose_action(state[i])
+                    for i in range(len(self.actors))
+                ])
+                
+                # 添加噪声（前20轮）
+                if episode <= 20:
+                    noise = self.noise()
+                else:
+                    noise = 0
+                actions = np.clip(actions + noise, self.min_action, self.max_action)
+                
+                # 执行动作
+                next_state, reward, done, _, _ = self.env.step(actions)
+                
+                # 存储经验
+                self.memory.store_transition(
+                    state.flatten(),
+                    actions.flatten(),
+                    reward.flatten(),
+                    next_state.flatten()
+                )
+                
+                # 学习
+                if self.memory.memory_counter > self.memory.capacity:
+                    self._update_networks()
+                
+                state = next_state
+                episode_reward += reward.mean()
+                
+                if done:
+                    break
+            
+            all_rewards.append(episode_reward)
+            print(f"Episode {episode}, Reward: {episode_reward:.2f}")
+            
+            # 保存模型
+            if episode % 20 == 0 and episode > 200:
+                self.save_models(self.config.get('output_dir', 'output'))
+        
+        return all_rewards
+    
+    def _update_networks(self):
+        """更新所有网络"""
+        # 采样批次数据
+        batch = self.memory.sample(self.batch_size)
+        
+        total_agents = self.n_agents + self.n_enemies
+        state_dim_total = self.state_dim * total_agents
+        action_dim_total = self.action_dim * total_agents
+        
+        b_s = batch[:, :state_dim_total]
+        b_a = batch[:, state_dim_total:state_dim_total + action_dim_total]
+        b_r = batch[:, -state_dim_total - total_agents:-state_dim_total]
+        b_s_ = batch[:, -state_dim_total:]
+        
+        b_s = torch.FloatTensor(b_s)
+        b_a = torch.FloatTensor(b_a)
+        b_r = torch.FloatTensor(b_r)
+        b_s_ = torch.FloatTensor(b_s_)
+        
+        # 更新每个智能体
+        for i in range(total_agents):
+            # 计算目标Q值
+            with torch.no_grad():
+                next_action, log_prob = self.actors[i].evaluate(
+                    b_s_[:, self.state_dim * i:self.state_dim * (i + 1)]
+                )
+                target_q1, target_q2 = self.critics[i].target_get_v(b_s_, next_action)
+                target_q = b_r[:, i:i+1] + self.gamma * (
+                    torch.min(target_q1, target_q2) - 
+                    self.entropies[i].alpha * log_prob
+                )
+            
+            # 更新Critic
+            current_q1, current_q2 = self.critics[i].get_v(
+                b_s,
+                b_a[:, self.action_dim * i:self.action_dim * (i + 1)]
+            )
+            self.critics[i].learn(current_q1, current_q2, target_q)
+            
+            # 更新Actor
+            action, log_prob = self.actors[i].evaluate(
+                b_s[:, self.state_dim * i:self.state_dim * (i + 1)]
+            )
+            q1, q2 = self.critics[i].get_v(b_s, action)
+            q = torch.min(q1, q2)
+            actor_loss = (self.entropies[i].alpha * log_prob - q).mean()
+            self.actors[i].learn(actor_loss)
+            
+            # 更新Entropy
+            entropy_loss = -(
+                self.entropies[i].log_alpha.exp() *
+                (log_prob + self.entropies[i].target_entropy).detach()
+            ).mean()
+            self.entropies[i].learn(entropy_loss)
+            self.entropies[i].alpha = self.entropies[i].log_alpha.exp()
+            
+            # 软更新目标网络
+            self.critics[i].soft_update()
+    
+    def save_models(self, output_dir):
+        """
+        保存模型
+        
+        Args:
+            output_dir: 输出目录
+        """
+        import os
+        os.makedirs(output_dir, exist_ok=True)
+        
+        for i, actor in enumerate(self.actors):
+            save_data = {
+                'net': actor.action_net.state_dict(),
+                'opt': actor.optimizer.state_dict()
+            }
+            path = os.path.join(output_dir, f'actor_{i}.pth')
+            torch.save(save_data, path)
+        
+        print(f"模型已保存到 {output_dir}")
+    
+    def load_models(self, output_dir):
+        """
+        加载模型
+        
+        Args:
+            output_dir: 模型目录
+        """
+        import os
+        
+        for i, actor in enumerate(self.actors):
+            path = os.path.join(output_dir, f'actor_{i}.pth')
+            if os.path.exists(path):
+                checkpoint = torch.load(path)
+                actor.action_net.load_state_dict(checkpoint['net'])
+                actor.optimizer.load_state_dict(checkpoint['opt'])
+        
+        print(f"模型已从 {output_dir} 加载")
+
