@@ -322,3 +322,63 @@ class MASACTrainer:
         
         print(f"✓ 模型加载完成")
 
+
+        follower_path = os.path.join(output_dir, 'follower.pth')
+        torch.save({
+            'models': follower_models,
+            'n_followers': self.n_followers
+        }, follower_path)
+        
+        print(f"模型已保存到 {output_dir}")
+        print(f"  - Leader模型: leader.pth ({self.n_leaders}个)")
+        print(f"  - Follower模型: follower.pth ({self.n_followers}个)")
+    
+    def load_models(self, output_dir):
+        """
+        加载模型
+        从leader.pth和follower.pth分别加载权重
+        
+        Args:
+            output_dir: 模型目录
+        """
+        import os
+        
+        # 加载leader模型
+        leader_path = os.path.join(output_dir, 'leader.pth')
+        if os.path.exists(leader_path):
+            checkpoint = torch.load(leader_path, map_location=self.device)
+            leader_models = checkpoint['models']
+            saved_n_leaders = checkpoint['n_leaders']
+            
+            if saved_n_leaders != self.n_leaders:
+                print(f"⚠️ 警告: 模型中的leader数量({saved_n_leaders})与当前配置({self.n_leaders})不匹配")
+            
+            for i in range(min(self.n_leaders, len(leader_models))):
+                self.actors[i].action_net.load_state_dict(leader_models[i]['net'])
+                self.actors[i].optimizer.load_state_dict(leader_models[i]['opt'])
+            
+            print(f"✓ 已加载Leader模型: {leader_path} ({len(leader_models)}个)")
+        else:
+            print(f"⚠️ Leader模型文件不存在: {leader_path}")
+        
+        # 加载follower模型
+        follower_path = os.path.join(output_dir, 'follower.pth')
+        if os.path.exists(follower_path):
+            checkpoint = torch.load(follower_path, map_location=self.device)
+            follower_models = checkpoint['models']
+            saved_n_followers = checkpoint['n_followers']
+            
+            if saved_n_followers != self.n_followers:
+                print(f"⚠️ 警告: 模型中的follower数量({saved_n_followers})与当前配置({self.n_followers})不匹配")
+            
+            for i in range(min(self.n_followers, len(follower_models))):
+                follower_idx = self.n_leaders + i
+                self.actors[follower_idx].action_net.load_state_dict(follower_models[i]['net'])
+                self.actors[follower_idx].optimizer.load_state_dict(follower_models[i]['opt'])
+            
+            print(f"✓ 已加载Follower模型: {follower_path} ({len(follower_models)}个)")
+        else:
+            print(f"⚠️ Follower模型文件不存在: {follower_path}")
+        
+        print(f"✓ 模型加载完成")
+
