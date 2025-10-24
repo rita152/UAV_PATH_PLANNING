@@ -188,19 +188,21 @@ class RlGame(gym.Env):
         edge_r_f = np.zeros((self.follower_num, 1))
         #避障奖励
         obstacle_r = np.zeros((self.leader_num, 1))
+        obstacle_r_f = np.zeros((self.follower_num, 1))  # ✅ 添加follower避障奖励数组
         #目标奖励
         goal_r = np.zeros((self.leader_num, 1))
         # 编队奖励
         follow_r = np.zeros((self.follower_num, 1))
-        follow_r0 = 0
-        speed_r=0
-        dis_1_agent_0_to_1=math.hypot(self.leader0.posx - self.follower0.posx, self.leader0.posy - self.follower0.posy)
+        # 速度奖励（分离leader和follower）
+        speed_r_leader = 0
+        speed_r_follower = np.zeros((self.follower_num, 1))  # ✅ 每个follower独立的速度奖励
         for i in range(self.leader_num+self.follower_num):
             if i==0:#leader
                 dis_1_obs[i] = math.hypot(self.leader['leader' + str(i)].posx - self.obstacle0.init_x,
                                           self.leader['leader' + str(i)].posy - self.obstacle0.init_y)
                 dis_1_goal[i] = math.hypot(self.leader['leader' + str(i)].posx - self.goal0.init_x,
                                            self.leader['leader' + str(i)].posy - self.goal0.init_y)
+                # 边界检查
                 if self.leader['leader' + str(i)].posx <= C.FOLLOWER_AREA_X + 50:
                     edge_r[i] = -1
                 elif self.leader['leader' + str(i)].posx >= C.FOLLOWER_AREA_WITH:
@@ -209,13 +211,26 @@ class RlGame(gym.Env):
                     edge_r[i] = -1
                 elif self.leader['leader' + str(i)].posy <= C.FOLLOWER_AREA_Y + 50:
                     edge_r[i] = -1
-                if 0 < dis_1_agent_0_to_1 < 50:
-                    follow_r0=0
-                    self.team_counter+=1
-                    if abs(self.leader0.speed-self.follower0.speed)<1:
-                        speed_r=1
-                else:
-                    follow_r0=-0.001*dis_1_agent_0_to_1
+                
+                # ✅ 修复：计算leader与所有follower的编队保持（只给leader编队奖励）
+                formation_reward = 0
+                formation_count = 0
+                for f_idx in range(self.follower_num):
+                    dis_to_follower = math.hypot(
+                        self.leader0.posx - self.follower[f'follower{f_idx}'].posx,
+                        self.leader0.posy - self.follower[f'follower{f_idx}'].posy
+                    )
+                    if 0 < dis_to_follower < 50:
+                        formation_count += 1
+                        if abs(self.leader0.speed - self.follower[f'follower{f_idx}'].speed) < 1:
+                            speed_r_leader += 1
+                    else:
+                        formation_reward += -0.001 * dis_to_follower
+                
+                # 更新编队计数
+                self.team_counter += formation_count
+                
+                # 目标和障碍检查
                 if dis_1_goal[i] < 40 and not self.leader['leader' + str(i)].dead:
                     goal_r[i] = 1000.0
                     self.leader['leader' + str(i)].win = True
@@ -231,42 +246,78 @@ class RlGame(gym.Env):
                     print('gg')
                 elif dis_1_obs[i] < 40 and not self.leader['leader' + str(i)].dead:
                     o_flag = 1
-                    obstacle_r[i] = -2#-100000*math.pow(1/dis_1_obs[i],2)
+                    obstacle_r[i] = -2
                 elif not self.leader['leader' + str(i)].dead:
-                    goal_r[i] =-0.001 * dis_1_goal[i]# math.exp(100/dis_1_goal[i])/10
-                r[i] = edge_r[i] + obstacle_r[i] + goal_r[i]+speed_r+follow_r0
+                    goal_r[i] =-0.001 * dis_1_goal[i]
+                
+                # ✅ Leader的总奖励
+                r[i] = edge_r[i] + obstacle_r[i] + goal_r[i] + speed_r_leader + formation_reward
+                
                 self.leader_state[i] = [self.leader['leader' + str(i)].posx / 1000, self.leader['leader' + str(i)].posy / 1000,
                                       self.leader['leader' + str(i)].speed / 30,
                                       self.leader['leader' + str(i)].theta * 57.3 / 360,
                                       self.goal0.init_x / 1000, self.goal0.init_y / 1000, o_flag]
                 self.leader['leader' + str(i)].update(action[i], self.Render)
-            else:
-                dis_2_obs = math.hypot(self.follower['follower' + str(i-1)].posx - self.obstacle0.init_x,
-                                          self.follower['follower' + str(i-1)].posy - self.obstacle0.init_y)
-                dis_1_goal[i] = math.hypot(self.follower['follower' + str(i-1)].posx - self.goal0.init_x,
-                                           self.follower['follower' + str(i-1)].posy- self.goal0.init_y)
-                if dis_2_obs < 40:
-                    o_flag1 = 1
-                    obstacle_r1 = -2
-                if self.follower['follower' + str(i-1)].posx <= C.FOLLOWER_AREA_X + 50:
-                    edge_r_f[i-1] = -1
-                elif self.follower['follower' + str(i-1)].posx >= C.FOLLOWER_AREA_WITH:
-                    edge_r_f[i-1] = -1
-                if self.follower['follower' + str(i-1)].posy >= C.FOLLOWER_AREA_HEIGHT:
-                    edge_r_f[i-1] = -1
-                elif self.follower['follower' + str(i-1)].posy <= C.FOLLOWER_AREA_Y + 50:
-                    edge_r_f[i-1] = -1
-                if 0 < dis_1_agent_0_to_1 < 50 and dis_1_goal[0]<dis_1_goal[1]:
-                    if abs(self.leader0.speed-self.follower0.speed)<1:
-                        speed_r=1
+            else:  # follower
+                follower_idx = i - 1  # follower在数组中的索引
+                
+                # ✅ 修复：计算当前follower到leader的距离
+                dis_follower_to_leader = math.hypot(
+                    self.follower[f'follower{follower_idx}'].posx - self.leader0.posx,
+                    self.follower[f'follower{follower_idx}'].posy - self.leader0.posy
+                )
+                
+                # ✅ 修复：计算当前follower到障碍物的距离
+                dis_follower_to_obs = math.hypot(
+                    self.follower[f'follower{follower_idx}'].posx - self.obstacle0.init_x,
+                    self.follower[f'follower{follower_idx}'].posy - self.obstacle0.init_y
+                )
+                
+                # 计算到目标的距离（用于判断条件）
+                dis_1_goal[i] = math.hypot(
+                    self.follower[f'follower{follower_idx}'].posx - self.goal0.init_x,
+                    self.follower[f'follower{follower_idx}'].posy - self.goal0.init_y
+                )
+                
+                # ✅ 修复：避障奖励（使用当前follower的距离）
+                if dis_follower_to_obs < 40:
+                    obstacle_r_f[follower_idx] = -2
+                
+                # 边界奖励（已有代码）
+                if self.follower[f'follower{follower_idx}'].posx <= C.FOLLOWER_AREA_X + 50:
+                    edge_r_f[follower_idx] = -1
+                elif self.follower[f'follower{follower_idx}'].posx >= C.FOLLOWER_AREA_WITH:
+                    edge_r_f[follower_idx] = -1
+                if self.follower[f'follower{follower_idx}'].posy >= C.FOLLOWER_AREA_HEIGHT:
+                    edge_r_f[follower_idx] = -1
+                elif self.follower[f'follower{follower_idx}'].posy <= C.FOLLOWER_AREA_Y + 50:
+                    edge_r_f[follower_idx] = -1
+                
+                # ✅ 修复：编队奖励（使用当前follower自己的距离和速度）
+                if 0 < dis_follower_to_leader < 50 and dis_1_goal[0] < dis_1_goal[i]:
+                    follow_r[follower_idx] = 0
+                    # ✅ 修复：速度匹配奖励（使用当前follower的速度）
+                    if abs(self.leader0.speed - self.follower[f'follower{follower_idx}'].speed) < 1:
+                        speed_r_follower[follower_idx] = 1
                 else:
-                    follow_r[i-1]=-0.001*dis_1_agent_0_to_1
-                r[i] =  follow_r[i-1]+speed_r
-                self.leader_state[i] = [self.follower['follower' + str(i-1)].posx / 1000, self.follower['follower' + str(i-1)].posy / 1000,
-                                      self.follower['follower' + str(i-1)].speed / 30,
-                                      self.follower['follower' + str(i-1)].theta * 57.3 / 360,
-                                      self.leader0.posx / 1000, self.leader0.posy / 1000,self.leader0.speed / 30 ]
-                self.follower['follower' + str(i-1)].update(action[i], self.Render)
+                    # ✅ 修复：使用当前follower到leader的距离
+                    follow_r[follower_idx] = -0.001 * dis_follower_to_leader
+                
+                # ✅ 修复：Follower总奖励（包含所有奖励项）
+                r[i] = follow_r[follower_idx] + speed_r_follower[follower_idx] + \
+                       obstacle_r_f[follower_idx] + edge_r_f[follower_idx]
+                
+                # 更新状态
+                self.leader_state[i] = [
+                    self.follower[f'follower{follower_idx}'].posx / 1000, 
+                    self.follower[f'follower{follower_idx}'].posy / 1000,
+                    self.follower[f'follower{follower_idx}'].speed / 30,
+                    self.follower[f'follower{follower_idx}'].theta * 57.3 / 360,
+                    self.leader0.posx / 1000, 
+                    self.leader0.posy / 1000,
+                    self.leader0.speed / 30
+                ]
+                self.follower[f'follower{follower_idx}'].update(action[i], self.Render)
         leader_state = copy.deepcopy(self.leader_state)
         done = copy.deepcopy(self.done)
         return leader_state,r,done,self.leader['leader0'].win,self.team_counter
