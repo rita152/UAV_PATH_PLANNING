@@ -97,11 +97,11 @@ class MASACTester:
             for step in range(self.max_steps):
                 # 选择动作（贪婪策略）
                 actions = np.zeros((len(self.actors), self.action_dim))
-                for i in range(self.n_agents):
+                for i in range(self.n_leaders):
                     actions[i] = self.actors[i].choose_action(state[i])
                 for i in range(self.n_followers):
-                    actions[i + self.n_agents] = self.actors[i + self.n_agents].choose_action(
-                        state[i + self.n_agents]
+                    actions[i + self.n_leaders] = self.actors[i + self.n_leaders].choose_action(
+                        state[i + self.n_leaders]
                     )
                 
                 # 执行动作
