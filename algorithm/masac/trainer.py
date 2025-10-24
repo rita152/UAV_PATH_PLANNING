@@ -71,8 +71,8 @@ class MASACTrainer:
         
         self.critics = [
             Critic(
-                self.state_dim * total_agents,
-                self.action_dim,
+                self.state_dim * total_agents,      # 所有智能体的状态维度
+                self.action_dim * total_agents,     # ✅ 修复：所有智能体的动作维度
                 lr=config.get('value_lr', 3e-3),
                 tau=config.get('tau', 1e-2),
                 device=self.device
@@ -191,37 +191,56 @@ class MASACTrainer:
         
         # 更新每个智能体
         for i in range(total_agents):
-            # 计算目标Q值
+            # ===== 计算目标Q值 =====
             with torch.no_grad():
-                next_action, log_prob = self.actors[i].evaluate(
+                # ✅ 修复：获取所有智能体的next_action
+                next_actions_list = []
+                for j in range(total_agents):
+                    next_a_j, _ = self.actors[j].evaluate(
+                        b_s_[:, self.state_dim * j:self.state_dim * (j + 1)]
+                    )
+                    next_actions_list.append(next_a_j)
+                
+                # 拼接所有智能体的next_action
+                next_actions_all = torch.cat(next_actions_list, dim=1)
+                
+                # 计算当前智能体i的next_action和log_prob（用于熵项）
+                _, log_prob_i = self.actors[i].evaluate(
                     b_s_[:, self.state_dim * i:self.state_dim * (i + 1)]
                 )
-                target_q1, target_q2 = self.critics[i].target_get_v(b_s_, next_action)
+                
+                # 使用所有状态和所有动作计算Q值
+                target_q1, target_q2 = self.critics[i].target_get_v(b_s_, next_actions_all)
                 target_q = b_r[:, i:i+1] + self.gamma * (
                     torch.min(target_q1, target_q2) - 
-                    self.entropies[i].alpha * log_prob
+                    self.entropies[i].alpha * log_prob_i
                 )
             
-            # 更新Critic
-            current_q1, current_q2 = self.critics[i].get_v(
-                b_s,
-                b_a[:, self.action_dim * i:self.action_dim * (i + 1)]
-            )
+            # ===== 更新Critic =====
+            # ✅ 修复：使用所有智能体的动作
+            current_q1, current_q2 = self.critics[i].get_v(b_s, b_a)
             self.critics[i].learn(current_q1, current_q2, target_q)
             
-            # 更新Actor
-            action, log_prob = self.actors[i].evaluate(
+            # ===== 更新Actor =====
+            # 采样当前智能体i的新动作
+            action_i, log_prob_i = self.actors[i].evaluate(
                 b_s[:, self.state_dim * i:self.state_dim * (i + 1)]
             )
-            q1, q2 = self.critics[i].get_v(b_s, action)
+            
+            # ✅ 修复：构建混合动作（其他智能体用batch中的动作，智能体i用新采样的）
+            actions_mixed = b_a.clone()
+            actions_mixed[:, self.action_dim * i:self.action_dim * (i + 1)] = action_i
+            
+            # 使用混合动作计算Q值
+            q1, q2 = self.critics[i].get_v(b_s, actions_mixed)
             q = torch.min(q1, q2)
-            actor_loss = (self.entropies[i].alpha * log_prob - q).mean()
+            actor_loss = (self.entropies[i].alpha * log_prob_i - q).mean()
             self.actors[i].learn(actor_loss)
             
-            # 更新Entropy
+            # ===== 更新Entropy =====
             entropy_loss = -(
                 self.entropies[i].log_alpha.exp() *
-                (log_prob + self.entropies[i].target_entropy).detach()
+                (log_prob_i + self.entropies[i].target_entropy).detach()
             ).mean()
             self.entropies[i].learn(entropy_loss)
             self.entropies[i].alpha = self.entropies[i].log_alpha.exp()
