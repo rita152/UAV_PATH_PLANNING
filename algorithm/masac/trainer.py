@@ -103,6 +103,10 @@ class MASACTrainer:
         self.use_seed = self.seed_config.get('enabled', False)
         self.base_seed = self.seed_config.get('base_seed', 42)
         self.use_episode_seed = self.seed_config.get('use_episode_seed', True)
+        
+        # 获取模型保存配置
+        self.save_interval = config.get('save_interval', 20)
+        self.save_threshold = config.get('save_threshold', 200)
     
     def train(self):
         """执行训练"""
@@ -158,9 +162,10 @@ class MASACTrainer:
             all_rewards.append(episode_reward)
             print(f"Episode {episode}, Reward: {episode_reward:.2f}")
             
-            # 保存模型
-            if episode % 20 == 0 and episode > 200:
+            # 保存模型（使用配置参数）
+            if episode % self.save_interval == 0 and episode > self.save_threshold:
                 self.save_models(self.config.get('output_dir', 'output'))
+                print(f"  💾 模型已保存 (episode {episode})")
         
         return all_rewards
     

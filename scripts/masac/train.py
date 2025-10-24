@@ -166,8 +166,10 @@ def get_training_config(yaml_config, env_params, env_info, output_dir):
         'max_steps': yaml_config['training']['max_steps'],
         'test_episodes': yaml_config['training']['test_episodes'],
         'output_dir': output_dir,
+        'save_interval': yaml_config['output']['save_interval'],      # 模型保存间隔
+        'save_threshold': yaml_config['output']['save_threshold'],    # 模型保存阈值
         'seed_config': yaml_config.get('seed', {}),
-        'device_config': yaml_config.get('device', {}),  # 添加设备配置
+        'device_config': yaml_config.get('device', {}),
     }
     return config
 
