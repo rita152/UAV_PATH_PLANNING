@@ -7,6 +7,13 @@ from matplotlib import pyplot as plt
 import os
 import pickle as pkl
 
+# 导入MASAC模块
+from algorithm.masac import (
+    Actor, Critic, Entropy,
+    Memory,
+    Ornstein_Uhlenbeck_Noise
+)
+
 # 获取项目根目录
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 # 创建输出目录
@@ -37,166 +44,7 @@ BATCH = 128
 tau = 1e-2
 MemoryCapacity=20000
 Switch=0
-class Ornstein_Uhlenbeck_Noise:
-    def __init__(self, mu, sigma=0.1, theta=0.1, dt=1e-2, x0=None):
-        self.theta = theta
-        self.mu = mu
-        self.sigma = sigma
-        self.dt = dt
-        self.x0 = x0
-        self.reset()
 
-    def __call__(self):
-        x = self.x_prev + \
-            self.theta * (self.mu - self.x_prev) * self.dt + \
-            self.sigma * np.sqrt(self.dt) * np.random.normal(size=self.mu.shape)
-        '''
-        后两行是dXt，其中后两行的前一行是θ(μ-Xt)dt，后一行是σεsqrt(dt)
-        '''
-        self.x_prev = x
-        return x
-
-    def reset(self):
-        if self.x0 is not None:
-            self.x_prev = self.x0
-        else:
-            self.x_prev = np.zeros_like(self.mu)
-class ActorNet(nn.Module):
-    def __init__(self,inp,outp):
-        super(ActorNet, self).__init__()
-        self.in_to_y1=nn.Linear(inp,256)
-        self.in_to_y1.weight.data.normal_(0,0.1)
-        self.y1_to_y2=nn.Linear(256,256)
-        self.y1_to_y2.weight.data.normal_(0,0.1)
-        self.out=nn.Linear(256,outp)
-        self.out.weight.data.normal_(0,0.1)
-        self.std_out = nn.Linear(256, outp)
-        self.std_out.weight.data.normal_(0, 0.1)
-
-    def forward(self,inputstate):
-        inputstate=self.in_to_y1(inputstate)
-        inputstate=F.relu(inputstate)
-        inputstate=self.y1_to_y2(inputstate)
-        inputstate=F.relu(inputstate)
-        mean=max_action*torch.tanh(self.out(inputstate))#输出概率分布的均值mean
-        log_std=self.std_out(inputstate)#softplus激活函数的值域>0
-        log_std=torch.clamp(log_std,-20,2)
-        std=log_std.exp()
-        return mean,std
-
-class CriticNet(nn.Module):
-    def __init__(self,input,output):
-        super(CriticNet, self).__init__()
-        #q1
-        self.in_to_y1=nn.Linear(input+output,256)
-        self.in_to_y1.weight.data.normal_(0,0.1)
-        self.y1_to_y2=nn.Linear(256,256)
-        self.y1_to_y2.weight.data.normal_(0,0.1)
-        self.out=nn.Linear(256,1)
-        self.out.weight.data.normal_(0,0.1)
-        #q2
-        self.q2_in_to_y1 = nn.Linear(input+output, 256)
-        self.q2_in_to_y1.weight.data.normal_(0, 0.1)
-        self.q2_y1_to_y2 = nn.Linear(256, 256)
-        self.q2_y1_to_y2.weight.data.normal_(0, 0.1)
-        self.q2_out = nn.Linear(256, 1)
-        self.q2_out.weight.data.normal_(0, 0.1)
-    def forward(self,s,a):
-        inputstate = torch.cat((s, a), dim=1)
-        #q1
-        q1=self.in_to_y1(inputstate)
-        q1=F.relu(q1)
-        q1=self.y1_to_y2(q1)
-        q1=F.relu(q1)
-        q1=self.out(q1)
-        #q2
-        q2 = self.q2_in_to_y1(inputstate)
-        q2 = F.relu(q2)
-        q2 = self.q2_y1_to_y2(q2)
-        q2 = F.relu(q2)
-        q2 = self.q2_out(q2)
-        return q1,q2
-
-class Memory():
-    def __init__(self,capacity,dims):
-        self.capacity=capacity
-        self.mem=np.zeros((capacity,dims))
-        self.memory_counter=0
-    '''存储记忆'''
-    def store_transition(self,s,a,r,s_):
-        tran = np.hstack((s, a,r, s_))  # 把s,a,r,s_困在一起，水平拼接
-        index = self.memory_counter % self.capacity#除余得索引
-        self.mem[index, :] = tran  # 给索引存值，第index行所有列都为其中一次的s,a,r,s_；mem会是一个capacity行，（s+a+r+s_）列的数组
-        self.memory_counter+=1
-    '''随机从记忆库里抽取'''
-    def sample(self,n):
-        assert self.memory_counter>=self.capacity,'记忆库没有存满记忆'
-        sample_index = np.random.choice(self.capacity, n)#从capacity个记忆里随机抽取n个为一批，可得到抽样后的索引号
-        new_mem = self.mem[sample_index, :]#由抽样得到的索引号在所有的capacity个记忆中  得到记忆s，a，r，s_
-        return new_mem
-class Actor():
-    def __init__(self):
-        self.action_net=ActorNet(state_number,action_number)#这只是均值mean
-        self.optimizer=torch.optim.Adam(self.action_net.parameters(),lr=policy_lr)
-
-    def choose_action(self,s):
-        inputstate = torch.FloatTensor(s)
-        mean,std=self.action_net(inputstate)
-        dist = torch.distributions.Normal(mean, std)
-        action=dist.sample()
-        action=torch.clamp(action,min_action,max_action)
-        return action.detach().numpy()
-    def evaluate(self,s):
-        inputstate = torch.FloatTensor(s)
-        mean,std=self.action_net(inputstate)
-        dist = torch.distributions.Normal(mean, std)
-        noise = torch.distributions.Normal(0, 1)
-        z = noise.sample()
-        action=torch.tanh(mean+std*z)
-        action=torch.clamp(action,min_action,max_action)
-        action_logprob=dist.log_prob(mean+std*z)-torch.log(1-action.pow(2)+1e-6)
-        return action,action_logprob
-
-    def learn(self,actor_loss):
-        loss=actor_loss
-        self.optimizer.zero_grad()
-        loss.backward()
-        self.optimizer.step()
-
-class Entroy():
-    def __init__(self):
-        self.target_entropy = -0.1
-        self.log_alpha = torch.zeros(1, requires_grad=True)
-        self.alpha = self.log_alpha.exp()
-        self.optimizer = torch.optim.Adam([self.log_alpha], lr=q_lr)
-
-    def learn(self,entroy_loss):
-        loss=entroy_loss
-        self.optimizer.zero_grad()
-        loss.backward()
-        self.optimizer.step()
-
-class Critic():
-    def __init__(self):
-        self.critic_v,self.target_critic_v=CriticNet(state_number*(N_Agent+M_Enemy),action_number),CriticNet(state_number*(N_Agent+M_Enemy),action_number)#改网络输入状态，生成一个Q值
-        self.target_critic_v.load_state_dict(self.critic_v.state_dict())
-        self.optimizer = torch.optim.Adam(self.critic_v.parameters(), lr=value_lr,eps=1e-5)
-        self.lossfunc = nn.MSELoss()
-    def soft_update(self):
-        for target_param, param in zip(self.target_critic_v.parameters(), self.critic_v.parameters()):
-            target_param.data.copy_(target_param.data * (1.0 - tau) + param.data * tau)
-
-    def get_v(self,s,a):
-        return self.critic_v(s,a)
-
-    def target_get_v(self,s,a):
-        return self.target_critic_v(s,a)
-
-    def learn(self,current_q1,current_q2,target_q):
-        loss = self.lossfunc(current_q1, target_q) + self.lossfunc(current_q2, target_q)
-        self.optimizer.zero_grad()
-        loss.backward()
-        self.optimizer.step()
 def main():
     run(env)
 def run(env):
@@ -219,9 +67,9 @@ def run(env):
                 critics = [None for _ in range(N_Agent+M_Enemy)]
                 entroys = [None for _ in range(N_Agent+M_Enemy)]
                 for i in range(N_Agent+M_Enemy):
-                    actors[i] = Actor()
-                    critics[i] = Critic()
-                    entroys[i] = Entroy()
+                    actors[i] = Actor(state_number, action_number, max_action, min_action, lr=policy_lr)
+                    critics[i] = Critic(state_number*(N_Agent+M_Enemy), action_number, lr=value_lr, tau=tau)
+                    entroys[i] = Entropy(target_entropy=-0.1, lr=q_lr)
                 M = Memory(MemoryCapacity, 2 * state_number*(N_Agent+M_Enemy) + action_number*(N_Agent+M_Enemy) + 1*(N_Agent+M_Enemy))
                 ou_noise = Ornstein_Uhlenbeck_Noise(mu=np.zeros(((N_Agent+M_Enemy), action_number)))
                 action=np.zeros(((N_Agent+M_Enemy), action_number))
@@ -254,7 +102,7 @@ def run(env):
                             b_s_ = torch.FloatTensor(b_s_)
                             for i in range(N_Agent+M_Enemy):
                                 new_action, log_prob_ = actors[i].evaluate(b_s_[:, state_number*i:state_number*(i+1)])
-                                target_q1, target_q2 = critics[i].target_critic_v(b_s_, new_action)
+                                target_q1, target_q2 = critics[i].target_get_v(b_s_, new_action)
                                 target_q = b_r[:, i:(i+1)] + GAMMA * (torch.min(target_q1, target_q2) - entroys[i].alpha * log_prob_)
                                 current_q1, current_q2 = critics[i].get_v(b_s, b_a[:, action_number*i:action_number*(i+1)])
                                 critics[i].learn(current_q1, current_q2, target_q.detach())
@@ -328,10 +176,10 @@ def run(env):
             env.close()
     else:
         print('SAC测试中...')
-        aa = Actor()
+        aa = Actor(state_number, action_number, max_action, min_action)
         checkpoint_aa = torch.load(os.path.join(OUTPUT_DIR, "Path_SAC_actor_L1.pth"))
         aa.action_net.load_state_dict(checkpoint_aa['net'])
-        bb = Actor()
+        bb = Actor(state_number, action_number, max_action, min_action)
         checkpoint_bb = torch.load(os.path.join(OUTPUT_DIR, "Path_SAC_actor_F1.pth"))
         bb.action_net.load_state_dict(checkpoint_bb['net'])
         action = np.zeros((N_Agent+M_Enemy, action_number))
@@ -352,12 +200,19 @@ def run(env):
                     action[i] = aa.choose_action(state[i])
                 for i in range(M_Enemy):
                     action[i+1] = bb.choose_action(state[i+1])
-                new_state, reward,done,win,team_counter,dis = env.step(action)  # 执行动作
+                step_result = env.step(action)  # 执行动作
+                # 兼容返回5个或6个值的情况
+                if len(step_result) == 6:
+                    new_state, reward, done, win, team_counter, dis = step_result
+                else:
+                    new_state, reward, done, win, team_counter = step_result
+                    dis = 0
                 if win:
                     win_times += 1
                 v.append(state[0][2]*30)
                 v1.append(state[1][2]*30)
-                Dis.append(dis)
+                if 'dis' in locals():
+                    Dis.append(dis)
                 integral_V+=state[0][2]
                 integral_U+=abs(action[0]).sum()
                 total_rewards += reward.mean()
