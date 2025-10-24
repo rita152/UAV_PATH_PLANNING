@@ -133,7 +133,6 @@ class ConfigLoader:
         config['training'].setdefault('max_steps', 1000)
         config['training'].setdefault('train_num', 1)
         config['training'].setdefault('test_episodes', 100)
-        config['training'].setdefault('switch', 0)
         
         # 算法默认值
         config['algorithm'].setdefault('gamma', 0.9)

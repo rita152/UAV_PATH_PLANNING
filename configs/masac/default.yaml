@@ -14,7 +14,6 @@ training:
   max_steps: 1000        # 每轮最大步数
   train_num: 1          # 训练次数
   test_episodes: 100    # 测试轮数
-  switch: 0             # 0=训练模式, 1=测试模式
 
 # 强化学习算法配置
 algorithm:
