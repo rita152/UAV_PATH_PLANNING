@@ -156,7 +156,12 @@ def run(env):
         plt.xlabel('Episode')
         plt.ylabel('Total reward')
         plt.legend()
-        plt.show()
+        
+        # 保存训练曲线（避免plt.show()阻塞训练）
+        curve_path = os.path.join(OUTPUT_DIR, 'training_curve.png')
+        plt.savefig(curve_path)
+        plt.close()  # 关闭图表释放内存
+        print(f"训练曲线已保存到: {curve_path}")
         
         print(f"\n✅ 训练完成! 共{len(all_rewards)}轮")
         print(f"平均奖励: {np.mean(all_rewards):.2f}")
