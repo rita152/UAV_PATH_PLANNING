@@ -108,6 +108,44 @@ class ConfigLoader:
         if algo_config.get('batch_size', 0) <= 0:
             raise ValueError("batch_size 必须大于0")
         
+        # ✅ 修复：添加更多验证
+        # 1. 验证学习率
+        lr_config = algo_config.get('learning_rates', {})
+        for lr_name, lr_value in lr_config.items():
+            if not isinstance(lr_value, (int, float)) or lr_value <= 0:
+                raise ValueError(f"{lr_name} 必须是正数，当前值: {lr_value}")
+            if lr_value > 0.1:
+                print(f"⚠️  警告: {lr_name}={lr_value} 较大，可能导致训练不稳定")
+        
+        # 2. 验证tau
+        tau = algo_config.get('tau', 0.01)
+        if not (0 < tau < 1):
+            raise ValueError(f"tau 必须在 (0, 1) 范围内，当前值: {tau}")
+        
+        # 3. 验证target_entropy
+        target_entropy = algo_config.get('target_entropy', -2.0)
+        if target_entropy >= 0:
+            print(f"⚠️  警告: target_entropy={target_entropy} 通常应该是负数")
+        
+        # 4. 验证噪声配置
+        if 'noise' in config:
+            noise_episodes = config['noise'].get('noise_episodes', 20)
+            max_episodes = train_config.get('max_episodes', 500)
+            if noise_episodes > max_episodes:
+                print(f"⚠️  警告: noise_episodes({noise_episodes}) > max_episodes({max_episodes})")
+            if noise_episodes < 0:
+                raise ValueError(f"noise_episodes 必须非负，当前值: {noise_episodes}")
+        
+        # 5. 验证batch_size和memory_capacity的关系
+        batch_size = algo_config.get('batch_size', 128)
+        memory_capacity = algo_config.get('memory_capacity', 20000)
+        if batch_size > memory_capacity:
+            raise ValueError(
+                f"batch_size({batch_size}) 不能大于 memory_capacity({memory_capacity})"
+            )
+        if batch_size > memory_capacity // 10:
+            print(f"⚠️  警告: batch_size({batch_size}) 相对 memory_capacity({memory_capacity}) 较大")
+        
         print("✓ 配置验证通过")
     
     def _add_defaults(self, config: Dict[str, Any]) -> Dict[str, Any]:

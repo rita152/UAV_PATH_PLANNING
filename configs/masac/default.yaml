@@ -3,7 +3,7 @@
 # 环境配置
 environment:
   n_leaders: 1           # 领导者无人机数量
-  n_followers: 1         # 跟随者无人机数量（可动态配置）
+  n_followers: 2         # 跟随者无人机数量（可动态配置）
   render: false          # 是否渲染可视化界面
   obstacle_num: 1        # 障碍物数量
   goal_num: 1           # 目标数量
@@ -17,21 +17,21 @@ training:
 
 # 强化学习算法配置
 algorithm:
-  gamma: 0.9            # 折扣因子
+  gamma: 0.95           # 折扣因子（提高到0.95以更好地考虑长期奖励）
   batch_size: 128       # 批次大小
   memory_capacity: 20000 # 经验回放容量
   
   # 学习率配置
   learning_rates:
-    policy_lr: 0.001    # 策略网络学习率
-    value_lr: 0.003     # 价值网络学习率
-    q_lr: 0.0003        # Q网络学习率
+    policy_lr: 0.0003   # 策略网络学习率（降低以提高稳定性）
+    value_lr: 0.001     # 价值网络学习率（降低以提高稳定性）
+    q_lr: 0.001         # Q网络学习率（提高以更快更新Q值）
   
   # 软更新参数
   tau: 0.01             # 目标网络软更新系数
   
   # 熵温度参数
-  target_entropy: -0.1  # 目标熵值
+  target_entropy: -2.0  # 目标熵值（建议设置为 -action_dim，对于2维动作空间为-2）
 
 # 状态和动作空间配置
 space:

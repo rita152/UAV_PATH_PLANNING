@@ -57,7 +57,6 @@ ehthumbs.db
 Thumbs.db
 
 # Logs and databases
-*.log
 *.sql
 *.sqlite
 *.db
@@ -88,8 +87,3 @@ temp/
 *.tmp
 *.bak
 *.backup
-
-
-# Training output
-output/
-*.pkl

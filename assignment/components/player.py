@@ -34,7 +34,7 @@ class BackgroundSprite(GameSprite):
 
 class Follower(GameSprite):
     def __init__(self,image=None):
-        super(Follower, self).__init__(image_name=image,speed=random.randint(20,30),size=(20,20))
+        super(Follower, self).__init__(image_name=image,speed=random.randint(10,20),size=(20,20))
         #自方的初始位置
         self.z=1000
         self.rect.center=random.randint(400,500),random.randint(500,550)
@@ -59,30 +59,34 @@ class Follower(GameSprite):
         self.followers=[]
         #创建子弹 精灵组，这是个组
         self.bullets=pygame.sprite.Group()
+        # ✅ 修复：初始化越界标志
+        self.out_of_bounds = False
 
     def update(self,action,Render=False):
         a=action[0]
         phi=action[1]
         if not self.dead:
-            self.speed=self.speed+0.6*a*dt
-            self.theta=self.theta+1.2*phi*dt
-            self.speed = np.clip(self.speed , 10, 40)
-            if self.theta>2*math.pi:
-                self.theta=self.theta-2*math.pi
-            elif self.theta<0:
-                self.theta = self.theta + 2*math.pi
+            self.speed=self.speed+0.3*a*dt
+            self.theta=self.theta+0.6*phi*dt
+            self.speed = np.clip(self.speed , 10, 20)
+            # ✅ 修复：使用模运算统一处理角度归一化
+            self.theta = self.theta % (2*math.pi)
             self.posx += self.speed*math.cos(self.theta)*dt
             self.posy -= self.speed*math.sin(self.theta)*dt
             if Render:
                 self.rotate()
-        if self.posx<=C.FOLLOWER_AREA_X:
-            self.posx=C.FOLLOWER_AREA_X
-        elif self.posx>=(C.FOLLOWER_AREA_X+C.FOLLOWER_AREA_WITH):
-            self.posx =C.FOLLOWER_AREA_X+C.FOLLOWER_AREA_WITH
-        if self.posy>=(C.FOLLOWER_AREA_Y+C.FOLLOWER_AREA_HEIGHT):
-            self.posy = C.FOLLOWER_AREA_Y+C.FOLLOWER_AREA_HEIGHT
-        elif self.posy<=C.FOLLOWER_AREA_Y:
-            self.posy = C.FOLLOWER_AREA_Y
+        
+        # ✅ 修复：添加越界检测标志（在clip之前检测）
+        self.out_of_bounds = False
+        if (self.posx < C.FOLLOWER_AREA_X or 
+            self.posx > C.FOLLOWER_AREA_X + C.FOLLOWER_AREA_WITH or
+            self.posy < C.FOLLOWER_AREA_Y or 
+            self.posy > C.FOLLOWER_AREA_Y + C.FOLLOWER_AREA_HEIGHT):
+            self.out_of_bounds = True
+        
+        # ✅ 修复：使用np.clip简化边界处理（硬边界限制）
+        self.posx = np.clip(self.posx, C.FOLLOWER_AREA_X, C.FOLLOWER_AREA_X+C.FOLLOWER_AREA_WITH)
+        self.posy = np.clip(self.posy, C.FOLLOWER_AREA_Y, C.FOLLOWER_AREA_Y+C.FOLLOWER_AREA_HEIGHT)
         self.rect.center = self.posx, self.posy
     def rotate(self):
         self.image = pygame.transform.rotozoom(self.orig_image, self.theta*57.3, 1)
@@ -99,10 +103,19 @@ class Follower(GameSprite):
         # print('...')
 
     def die(self):
+        """标记Follower死亡（不从sprite group中移除）"""
         if not self.dead:
-            self.die_time = pygame.time.get_ticks()
+            # ✅ 修复：只在pygame已初始化时记录时间
+            if hasattr(pygame, 'time'):
+                try:
+                    self.die_time = pygame.time.get_ticks()
+                except:
+                    self.die_time = 0
+            else:
+                self.die_time = 0
         self.dead = True
-        self.kill()
+        # ✅ 修复：不调用kill()，保持对象在group中（只标记为dead）
+        # self.kill()
 
 
 class Leader(GameSprite):
@@ -132,6 +145,8 @@ class Leader(GameSprite):
         self.followers=[]
         #创建子弹 精灵组，这是个组
         self.bullets=pygame.sprite.Group()
+        # ✅ 修复：初始化越界标志
+        self.out_of_bounds = False
 
     def update(self,action,Render=False):
         a=action[0]
@@ -140,22 +155,24 @@ class Leader(GameSprite):
             self.speed=self.speed+0.3*a*dt
             self.theta=self.theta+0.6*phi*dt
             self.speed = np.clip(self.speed , 10, 20)
-            if self.theta>2*math.pi:
-                self.theta=self.theta-2*math.pi
-            elif self.theta<0:
-                self.theta = self.theta + 2*math.pi
+            # ✅ 修复：使用模运算统一处理角度归一化
+            self.theta = self.theta % (2*math.pi)
             self.posx += self.speed*math.cos(self.theta)*dt
             self.posy -= self.speed*math.sin(self.theta)*dt
             if Render:
                 self.rotate()
-        if self.posx<=C.FOLLOWER_AREA_X:
-            self.posx=C.FOLLOWER_AREA_X
-        elif self.posx>=(C.FOLLOWER_AREA_X+C.FOLLOWER_AREA_WITH):
-            self.posx =C.FOLLOWER_AREA_X+C.FOLLOWER_AREA_WITH
-        if self.posy>=(C.FOLLOWER_AREA_Y+C.FOLLOWER_AREA_HEIGHT):
-            self.posy = C.FOLLOWER_AREA_Y+C.FOLLOWER_AREA_HEIGHT
-        elif self.posy<=C.FOLLOWER_AREA_Y:
-            self.posy = C.FOLLOWER_AREA_Y
+        
+        # ✅ 修复：添加越界检测标志（在clip之前检测）
+        self.out_of_bounds = False
+        if (self.posx < C.FOLLOWER_AREA_X or 
+            self.posx > C.FOLLOWER_AREA_X + C.FOLLOWER_AREA_WITH or
+            self.posy < C.FOLLOWER_AREA_Y or 
+            self.posy > C.FOLLOWER_AREA_Y + C.FOLLOWER_AREA_HEIGHT):
+            self.out_of_bounds = True
+        
+        # ✅ 修复：使用np.clip简化边界处理（硬边界限制）
+        self.posx = np.clip(self.posx, C.FOLLOWER_AREA_X, C.FOLLOWER_AREA_X+C.FOLLOWER_AREA_WITH)
+        self.posy = np.clip(self.posy, C.FOLLOWER_AREA_Y, C.FOLLOWER_AREA_Y+C.FOLLOWER_AREA_HEIGHT)
         self.rect.center = self.posx, self.posy
     def rotate(self):
         self.image = pygame.transform.rotozoom(self.orig_image, self.theta*57.3, 1)
@@ -172,10 +189,19 @@ class Leader(GameSprite):
         # print('...')
 
     def die(self):
+        """标记Leader死亡（不从sprite group中移除）"""
         if not self.dead:
-            self.die_time = pygame.time.get_ticks()
+            # ✅ 修复：只在pygame已初始化时记录时间
+            if hasattr(pygame, 'time'):
+                try:
+                    self.die_time = pygame.time.get_ticks()
+                except:
+                    self.die_time = 0
+            else:
+                self.die_time = 0
         self.dead = True
-        self.kill()
+        # ✅ 修复：不调用kill()，保持对象在group中（只标记为dead）
+        # self.kill()
 
 
 class Obstacle(GameSprite):

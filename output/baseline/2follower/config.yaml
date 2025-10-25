@@ -1,0 +1,38 @@
+environment:
+  n_leaders: 1
+  n_followers: 2
+  render: false
+  obstacle_num: 1
+  goal_num: 1
+training:
+  max_episodes: 500
+  max_steps: 1000
+  train_num: 1
+  test_episodes: 100
+algorithm:
+  gamma: 0.95
+  batch_size: 128
+  memory_capacity: 20000
+  learning_rates:
+    policy_lr: 0.0003
+    value_lr: 0.001
+    q_lr: 0.001
+  tau: 0.01
+  target_entropy: -2.0
+space:
+  state_dim: 7
+  action_dim: 2
+output:
+  save_interval: 20
+  save_threshold: 200
+  output_dir: output/baseline/2follower
+noise:
+  ou_noise: true
+  noise_episodes: 20
+seed:
+  enabled: true
+  base_seed: 42
+  use_episode_seed: true
+device:
+  use_cuda: true
+  cuda_device: 0

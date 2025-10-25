@@ -89,12 +89,13 @@ def load_config(args):
     return yaml_config, env_params, test_params
 
 
-def create_env(env_params):
+def create_env(env_params, max_steps=1000):
     """
     创建环境
     
     Args:
         env_params: 环境参数字典
+        max_steps: 每个episode的最大步数
         
     Returns:
         env: 环境实例
@@ -110,10 +111,15 @@ def create_env(env_params):
     print(f"  运行模式: 测试")
     print(f"{'='*60}\n")
     
+    # ✅ 适配新的环境接口：render参数改为render_mode
+    render_mode = 'human' if env_params['render'] else None
+    
+    # ✅ 修复：传入max_steps参数，从函数参数读取
     env = RlGame(
         n=env_params['n_leaders'],
         m=env_params['n_followers'],
-        render=env_params['render']
+        render_mode=render_mode,
+        max_steps=max_steps
     ).unwrapped
     
     env_info = {
@@ -218,8 +224,8 @@ def main():
     print(f"{'='*60}")
     setup_seeds(yaml_config, episode=0)
     
-    # 创建环境
-    env, env_info = create_env(env_params)
+    # 创建环境（传入max_steps）
+    env, env_info = create_env(env_params, max_steps=yaml_config['training']['max_steps'])
     
     # 获取测试配置
     config = get_test_config(yaml_config, env_params, env_info, test_params)

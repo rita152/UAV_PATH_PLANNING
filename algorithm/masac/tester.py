@@ -5,6 +5,7 @@ import torch
 import numpy as np
 from .agent import Actor
 from utils.device_utils import get_device
+from utils.normalization import get_normalizer  # ✅ 导入归一化工具
 
 
 class MASACTester:
@@ -113,60 +114,63 @@ class MASACTester:
         Returns:
             测试结果字典
         """
+        # ✅ 设置所有网络为评估模式
+        for actor in self.actors:
+            actor.action_net.eval()
+        
         print(f"开始测试，共 {self.test_episodes} 轮...")
         
         win_count = 0
         total_rewards = []
-        leader_rewards = []      # ✅ 新增：分离leader奖励
-        follower_rewards = []    # ✅ 新增：分离follower奖励
+        leader_rewards = []
+        follower_rewards = []
         total_steps = []
         formation_keeping_rates = []
         all_integral_V = []
         all_integral_U = []
         
         for episode in range(self.test_episodes):
-            state = self.env.reset()
+            # ✅ 适配新的reset接口
+            state, info = self.env.reset()
             episode_reward = 0
-            leader_episode_reward = 0      # ✅ 新增：leader奖励累计
-            follower_episode_reward = 0    # ✅ 新增：follower奖励累计
+            leader_episode_reward = 0
+            follower_episode_reward = 0
             step = 0
             integral_V = 0
             integral_U = 0
-            episode_team_counter = 0  # ✅ 新增：episode内的编队计数
+            episode_team_counter = 0
             
             for step in range(self.max_steps):
-                # 选择动作（贪婪策略）
+                # 选择动作（确定性策略 - 用于测试）
                 actions = np.zeros((len(self.actors), self.action_dim))
                 for i in range(self.n_leaders):
-                    actions[i] = self.actors[i].choose_action(state[i])
+                    actions[i] = self.actors[i].choose_action(state[i], deterministic=True)
                 for i in range(self.n_followers):
                     actions[i + self.n_leaders] = self.actors[i + self.n_leaders].choose_action(
-                        state[i + self.n_leaders]
+                        state[i + self.n_leaders], deterministic=True
                     )
                 
-                # 执行动作
-                step_result = self.env.step(actions)
-                # 兼容返回5个或6个值的情况
-                if len(step_result) == 6:
-                    next_state, reward, done, win, team_counter, dis = step_result
-                else:
-                    next_state, reward, done, win, team_counter = step_result
+                # ✅ 适配新的step接口
+                next_state, reward, terminated, truncated, info = self.env.step(actions)
+                done = terminated or truncated
                 
-                # ✅ 修复：统计指标
-                # 飞行路程（累计速度，恢复真实单位）
-                integral_V += state[0][2] * 30.0  # 恢复原始速度值
+                # ✅ 修复：使用归一化工具类进行反归一化
+                normalizer = get_normalizer()
+                current_speed_norm = state[0][2]  # 归一化的速度
+                current_speed = normalizer.denormalize_speed(current_speed_norm)
+                integral_V += current_speed
                 
-                # ✅ 修复：能量损耗（统计所有智能体）
-                integral_U += np.abs(actions).sum()  # 所有智能体的动作
+                # 能量损耗（所有智能体的动作）
+                integral_U += np.abs(actions).sum()
                 
-                # ✅ 修复：分离奖励统计
-                leader_episode_reward += reward[0, 0]  # leader的奖励
+                # 分离奖励统计
+                leader_episode_reward += reward[0, 0]
                 if self.n_followers > 0:
-                    follower_episode_reward += reward[1:, 0].mean()  # follower的平均奖励
-                episode_reward += reward.sum()  # 总奖励（所有智能体之和）
+                    follower_episode_reward += reward[1:, 0].mean()
+                episode_reward += reward.sum()
                 
-                # ✅ 修复：累计编队计数
-                episode_team_counter += team_counter
+                # 累计编队计数（从info中获取）
+                episode_team_counter += info.get('formation_count', 0)
                 
                 state = next_state
                 
@@ -174,7 +178,7 @@ class MASACTester:
                     self.env.render()
                 
                 if done:
-                    if win:
+                    if info.get('win', False):
                         win_count += 1
                     break
             
@@ -186,22 +190,23 @@ class MASACTester:
             all_integral_V.append(integral_V)
             all_integral_U.append(integral_U)
             
-            # ✅ 修复：编队保持率计算
+            # 编队保持率计算
             if step > 0 and self.n_followers > 0:
-                # 正确公式：累计编队数 / (总步数 * follower数量)
                 formation_rate = episode_team_counter / ((step + 1) * self.n_followers)
                 formation_keeping_rates.append(formation_rate)
             
+            # ✅ 更新打印信息，使用info判断
+            win_status = '是' if info.get('win', False) else '否'
             print(f"测试轮次 {episode + 1}/{self.test_episodes}, "
                   f"奖励: {episode_reward:.2f}, 步数: {step + 1}, "
-                  f"胜利: {'是' if win else '否'}")
+                  f"胜利: {win_status}")
         
         # 计算统计结果
         results = {
             'success_rate': win_count / self.test_episodes,
-            'total_avg_reward': np.mean(total_rewards),          # 所有智能体总奖励
-            'leader_avg_reward': np.mean(leader_rewards),        # ✅ 新增：leader平均奖励
-            'follower_avg_reward': np.mean(follower_rewards),    # ✅ 新增：follower平均奖励
+            'total_avg_reward': np.mean(total_rewards),
+            'leader_avg_reward': np.mean(leader_rewards),
+            'follower_avg_reward': np.mean(follower_rewards),
             'std_reward': np.std(total_rewards),
             'avg_steps': np.mean(total_steps),
             'avg_formation_keeping': np.mean(formation_keeping_rates) if formation_keeping_rates else 0,
@@ -238,25 +243,26 @@ class MASACTester:
         Returns:
             回合信息字典
         """
+        # ✅ 设置所有网络为评估模式
+        for actor in self.actors:
+            actor.action_net.eval()
+        
         print("开始单回合测试...")
         
-        state = self.env.reset()
+        # ✅ 适配新的reset接口
+        state, info = self.env.reset()
         episode_reward = 0
         trajectory = []
         
         for step in range(self.max_steps):
-            # 选择动作
+            # 选择动作（确定性策略 - 用于测试）
             actions = np.zeros((len(self.actors), self.action_dim))
             for i in range(len(self.actors)):
-                actions[i] = self.actors[i].choose_action(state[i])
+                actions[i] = self.actors[i].choose_action(state[i], deterministic=True)
             
-            # 执行动作
-            step_result = self.env.step(actions)
-            # 兼容返回5个或6个值的情况
-            if len(step_result) == 6:
-                next_state, reward, done, win, team_counter, dis = step_result
-            else:
-                next_state, reward, done, win, team_counter = step_result
+            # ✅ 适配新的step接口
+            next_state, reward, terminated, truncated, info = self.env.step(actions)
+            done = terminated or truncated
             
             # 记录轨迹
             trajectory.append({
@@ -264,7 +270,8 @@ class MASACTester:
                 'state': state.copy(),
                 'action': actions.copy(),
                 'reward': reward.copy(),
-                'next_state': next_state.copy()
+                'next_state': next_state.copy(),
+                'info': info.copy()
             })
             
             episode_reward += reward.mean()
@@ -279,12 +286,15 @@ class MASACTester:
         results = {
             'total_reward': episode_reward,
             'steps': step + 1,
-            'win': win,
+            'win': info.get('win', False),
+            'terminated': info.get('terminated', False),
+            'truncated': info.get('truncated', False),
             'trajectory': trajectory
         }
         
+        win_status = '是' if results['win'] else '否'
         print(f"单回合测试完成: 奖励={episode_reward:.2f}, "
-              f"步数={step + 1}, 胜利={'是' if win else '否'}")
+              f"步数={step + 1}, 胜利={win_status}")
         
         return results
 

@@ -40,12 +40,37 @@ class Memory:
             
         Returns:
             采样的经验batch
+            
+        Raises:
+            ValueError: 当记忆库样本不足时
         """
-        assert self.memory_counter >= self.capacity, '记忆库没有存满记忆'
-        sample_index = np.random.choice(self.capacity, n)
+        # ✅ 修复：只要有足够的样本就可以采样，不需要等buffer填满
+        current_size = min(self.memory_counter, self.capacity)
+        
+        # ✅ 修复：使用显式异常而非断言（断言可能被优化掉）
+        if current_size < n:
+            raise ValueError(
+                f'记忆库样本不足: 需要{n}个样本进行采样，当前只有{current_size}个样本。\n'
+                f'建议：\n'
+                f'  1. 等待收集更多经验（至少{n}个）后再开始训练\n'
+                f'  2. 或者减小batch_size参数'
+            )
+        
+        # 从已有样本中随机采样（不重复采样）
+        sample_index = np.random.choice(current_size, n, replace=False)
         new_mem = self.mem[sample_index, :]
         return new_mem
     
-    def is_ready(self):
-        """检查记忆库是否已满，可以开始采样"""
-        return self.memory_counter >= self.capacity
+    def is_ready(self, batch_size):
+        """
+        检查记忆库是否有足够样本可以采样
+        
+        Args:
+            batch_size: 需要采样的批次大小
+            
+        Returns:
+            bool: 是否有足够样本进行采样
+        """
+        # ✅ 修复：与sample()逻辑一致，只需要>=batch_size即可
+        current_size = min(self.memory_counter, self.capacity)
+        return current_size >= batch_size

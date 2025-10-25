@@ -25,45 +25,71 @@ class Actor:
         self.action_net = ActorNet(state_dim, action_dim, max_action).to(self.device)
         self.optimizer = torch.optim.Adam(self.action_net.parameters(), lr=lr)
 
-    def choose_action(self, s):
+    def choose_action(self, s, deterministic=False):
         """
-        选择动作(用于训练)
+        选择动作(用于环境交互)
         
         Args:
             s: 当前状态
+            deterministic: 是否使用确定性策略（测试时为True，训练时为False）
             
         Returns:
             action: 选择的动作
         """
         inputstate = torch.FloatTensor(s).to(self.device)
         mean, std = self.action_net(inputstate)
-        dist = torch.distributions.Normal(mean, std)
-        action = dist.sample()
+        
+        if deterministic:
+            # ✅ 测试时：使用确定性策略（对mean进行tanh变换）
+            action = torch.tanh(mean)
+        else:
+            # ✅ 训练时：使用随机策略（重参数化采样后tanh变换）
+            eps = torch.randn_like(mean)
+            u = mean + std * eps  # 原始空间的采样
+            action = torch.tanh(u)  # 唯一的tanh变换，映射到[-1, 1]
+        
+        # Clamp到动作范围（通常max_action=1, min_action=-1）
         action = torch.clamp(action, self.min_action, self.max_action)
         return action.detach().cpu().numpy()
     
     def evaluate(self, s):
         """
         评估状态并返回动作和对数概率(用于策略更新)
+        使用重参数化技巧和正确的tanh变换
         
         Args:
             s: 状态（已在device上的tensor）
             
         Returns:
             action: 动作
-            action_logprob: 动作对数概率
+            action_logprob: 动作对数概率（已包含tanh的Jacobian修正）
         """
-        # s已经是在正确设备上的tensor，无需转换
         mean, std = self.action_net(s)
+        
+        # ✅ 重参数化采样（在原始空间）
+        eps = torch.randn_like(mean)
+        u = mean + std * eps  # 原始空间的动作
+        
+        # ✅ tanh变换（唯一的一次变换）
+        action = torch.tanh(u)  # 变换到[-1, 1]
+        
+        # ✅ 计算log概率
+        # 1. 原始高斯分布的log概率
         dist = torch.distributions.Normal(mean, std)
-        noise = torch.distributions.Normal(0, 1)
-        z = noise.sample().to(self.device)
-        action = torch.tanh(mean + std * z)
+        log_prob = dist.log_prob(u)
+        
+        # 2. 应用tanh变换的Jacobian修正
+        # log π(a|s) = log π(u|s) - Σ log(1 - tanh²(u))
+        # 由于 a = tanh(u)，所以 1 - tanh²(u) = 1 - a²
+        log_prob = log_prob - torch.log(1 - action.pow(2) + 1e-6)
+        
+        # 3. 对所有动作维度求和，得到联合log概率
+        log_prob = log_prob.sum(dim=-1, keepdim=True)
+        
+        # ✅ Clamp到动作范围
         action = torch.clamp(action, self.min_action, self.max_action)
-        action_logprob = dist.log_prob(mean + std * z) - torch.log(1 - action.pow(2) + 1e-6)
-        # 对所有动作维度求和，得到总的log_prob
-        action_logprob = action_logprob.sum(dim=-1, keepdim=True)
-        return action, action_logprob
+        
+        return action, log_prob
 
     def learn(self, actor_loss):
         """
@@ -93,8 +119,18 @@ class Entropy:
         self.device = device if device is not None else torch.device('cpu')
         
         self.log_alpha = torch.zeros(1, requires_grad=True, device=self.device)
-        self.alpha = self.log_alpha.exp()
+        # ✅ 移除self.alpha属性，改为使用property动态计算
         self.optimizer = torch.optim.Adam([self.log_alpha], lr=lr)
+    
+    @property
+    def alpha(self):
+        """
+        获取当前的alpha值（detached，用于计算loss）
+        
+        Returns:
+            alpha值（无梯度）
+        """
+        return self.log_alpha.exp().detach()
 
     def learn(self, entropy_loss):
         """

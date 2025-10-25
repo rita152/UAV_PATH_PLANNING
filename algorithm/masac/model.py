@@ -39,7 +39,7 @@ class ActorNet(nn.Module):
             inputstate: 输入状态
             
         Returns:
-            mean: 动作均值
+            mean: 动作均值（原始空间，未经tanh变换）
             std: 动作标准差
         """
         x = self.in_to_y1(inputstate)
@@ -47,7 +47,10 @@ class ActorNet(nn.Module):
         x = self.y1_to_y2(x)
         x = F.relu(x)
         
-        mean = self.max_action * torch.tanh(self.out(x))
+        # ✅ 修复：mean不做tanh变换，保持在原始空间
+        # tanh变换将在采样时进行，确保只变换一次
+        mean = self.out(x)
+        
         log_std = self.std_out(x)
         log_std = torch.clamp(log_std, -20, 2)
         std = log_std.exp()

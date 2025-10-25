@@ -101,23 +101,27 @@ def setup_output_dir(yaml_config):
     return output_dir, shoplistfile
 
 
-def create_env(env_params):
+def create_env(env_params, max_steps=1000):
     """
     创建环境
     
     Args:
         env_params: 环境参数字典
+        max_steps: 每个episode的最大步数
         
     Returns:
         env: 环境实例
         env_info: 环境信息字典
     """
-    # 环境创建（简化输出）
+    # ✅ 适配新的环境接口：render参数改为render_mode
+    render_mode = 'human' if env_params['render'] else None
     
+    # ✅ 修复：传入max_steps参数，从函数参数读取
     env = RlGame(
         n=env_params['n_leaders'],
         m=env_params['n_followers'],
-        render=env_params['render']
+        render_mode=render_mode,
+        max_steps=max_steps
     ).unwrapped
     
     env_info = {
@@ -161,8 +165,11 @@ def get_training_config(yaml_config, env_params, env_info, output_dir):
         'max_steps': yaml_config['training']['max_steps'],
         'test_episodes': yaml_config['training']['test_episodes'],
         'output_dir': output_dir,
-        'save_interval': yaml_config['output']['save_interval'],      # 模型保存间隔
-        'save_threshold': yaml_config['output']['save_threshold'],    # 模型保存阈值
+        'save_interval': yaml_config['output']['save_interval'],
+        'save_threshold': yaml_config['output']['save_threshold'],
+        # ✅ 修复：添加噪声和熵配置参数
+        'noise_episodes': yaml_config['noise'].get('noise_episodes', 20),
+        'target_entropy': yaml_config['algorithm'].get('target_entropy', -2.0),
         'seed_config': yaml_config.get('seed', {}),
         'device_config': yaml_config.get('device', {}),
     }
@@ -284,8 +291,8 @@ def main():
     # 设置输出目录
     output_dir, shoplistfile = setup_output_dir(yaml_config)
     
-    # 创建环境
-    env, env_info = create_env(env_params)
+    # 创建环境（传入max_steps）
+    env, env_info = create_env(env_params, max_steps=yaml_config['training']['max_steps'])
     
     # 获取训练配置
     config = get_training_config(yaml_config, env_params, env_info, output_dir)
