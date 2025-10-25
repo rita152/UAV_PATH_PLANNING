@@ -236,14 +236,14 @@ class RlGame(gym.Env):
                     self.leader['leader' + str(i)].win = True
                     self.leader['leader' + str(i)].die()
                     self.done= True
-                    print('aa')
+                    # 移除print，由trainer.py在episode行统一显示
                 elif dis_1_obs[i] < 20 and not self.leader['leader' + str(i)].dead:
                     o_flag = 1
                     obstacle_r[i] = -500
                     self.leader['leader' + str(i)].die()
                     self.leader['leader' + str(i)].win = False
                     self.done = True
-                    print('gg')
+                    # 移除print，由trainer.py在episode行统一显示
                 elif dis_1_obs[i] < 40 and not self.leader['leader' + str(i)].dead:
                     o_flag = 1
                     obstacle_r[i] = -2

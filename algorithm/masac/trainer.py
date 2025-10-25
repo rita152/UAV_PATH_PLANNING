@@ -131,6 +131,7 @@ class MASACTrainer:
             episode_reward = 0
             episode_leader_reward = 0    # ✅ 新增：episode的leader奖励
             episode_follower_reward = 0  # ✅ 新增：episode的follower奖励
+            episode_follower_rewards_individual = [0.0] * self.n_followers  # ✅ 每个follower的独立奖励
             
             for step in range(self.max_steps):
                 # 选择动作
@@ -167,6 +168,9 @@ class MASACTrainer:
                 episode_leader_reward += reward[0, 0]  # leader奖励
                 if self.n_followers > 0:
                     episode_follower_reward += reward[1:, 0].mean()  # follower平均奖励
+                    # ✅ 记录每个follower的独立奖励
+                    for f_idx in range(self.n_followers):
+                        episode_follower_rewards_individual[f_idx] += reward[1 + f_idx, 0]
                 episode_reward += reward.sum()  # 总奖励
                 
                 if done:
@@ -175,7 +179,22 @@ class MASACTrainer:
             all_rewards.append(episode_reward)
             leader_rewards.append(episode_leader_reward)
             follower_rewards.append(episode_follower_reward)
-            print(f"Episode {episode}, Total: {episode_reward:.2f}, Leader: {episode_leader_reward:.2f}, Follower: {episode_follower_reward:.2f}")
+            
+            # ✅ 打印详细信息（包含每个follower和step数）
+            follower_str = ", ".join([f"F{i}: {episode_follower_rewards_individual[i]:.2f}" 
+                                      for i in range(self.n_followers)])
+            
+            # 判断结束原因
+            if done:
+                if self.env.leader['leader0'].win:
+                    status = "✓ success"
+                else:
+                    status = "✗ failure"
+            else:
+                status = "⏱ timeout"
+            
+            print(f"Episode {episode:3d}, Steps: {step+1:4d}, Total: {episode_reward:7.2f}, "
+                  f"Leader: {episode_leader_reward:7.2f}, [{follower_str}] - {status}")
             
             # 保存模型（使用配置参数）
             if episode % self.save_interval == 0 and episode > self.save_threshold:
