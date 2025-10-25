@@ -115,6 +115,9 @@ class MASACTrainer:
         # 获取模型保存配置
         self.save_interval = config.get('save_interval', 20)
         self.save_threshold = config.get('save_threshold', 200)
+        
+        # 获取logger（如果有）
+        self.logger = config.get('logger', None)
     
     def train(self):
         """执行训练"""
@@ -193,13 +196,23 @@ class MASACTrainer:
             else:
                 status = "⏱ timeout"
             
-            print(f"Episode {episode:3d}, Steps: {step+1:4d}, Total: {episode_reward:7.2f}, "
-                  f"Leader: {episode_leader_reward:7.2f}, [{follower_str}] - {status}")
+            msg = (f"Episode {episode:3d}, Steps: {step+1:4d}, Total: {episode_reward:7.2f}, "
+                   f"Leader: {episode_leader_reward:7.2f}, [{follower_str}] - {status}")
+            
+            # 使用logger或print
+            if self.logger:
+                self.logger.info(msg)
+            else:
+                print(msg)
             
             # 保存模型（使用配置参数）
             if episode % self.save_interval == 0 and episode > self.save_threshold:
                 self.save_models(self.config.get('output_dir', 'output'))
-                print(f"  💾 模型已保存 (episode {episode})")
+                msg = f"  💾 模型已保存 (episode {episode})"
+                if self.logger:
+                    self.logger.info(msg)
+                else:
+                    print(msg)
         
         # ✅ 返回所有奖励数据
         return {

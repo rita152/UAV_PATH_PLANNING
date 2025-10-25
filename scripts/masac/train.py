@@ -17,11 +17,13 @@ import argparse
 
 # 导入MASAC模块
 from algorithm.masac import MASACTrainer
-# 导入配置加载器、种子管理器和设备管理器
+# 导入配置加载器、种子管理器、设备管理器和日志管理器
 from utils.config_loader import ConfigLoader
 from utils.seed_utils import setup_seeds
 from utils import device_utils  # ✅ 修复：导入device_utils模块
 from utils.device_utils import setup_device
+from utils.logger_utils import setup_training_logger
+import logging
 
 # 设置环境变量
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
@@ -178,20 +180,25 @@ def train(env, config, shoplistfile, env_params, yaml_config):
         env_params: 环境参数
         yaml_config: 完整的YAML配置（用于保存）
     """
+    # ✅ 设置日志记录（同时输出到终端和文件）
+    logger, log_file = setup_training_logger(config['output_dir'])
+    
     # ✅ 保存完整配置到输出目录
     import yaml
     config_save_path = os.path.join(config['output_dir'], 'config.yaml')
     with open(config_save_path, 'w', encoding='utf-8') as f:
         yaml.dump(yaml_config, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
     
-    print(f"\n{'='*60}")
-    print(f"🎓 开始训练")
-    print(f"{'='*60}")
-    print(f"  Leader × {config['n_leaders']} | Follower × {config['n_followers']} | Episodes: {config['max_episodes']}")
-    print(f"  配置已保存: {config_save_path}")
-    print(f"{'='*60}\n")
+    logger.info(f"\n{'='*60}")
+    logger.info(f"🎓 开始训练")
+    logger.info(f"{'='*60}")
+    logger.info(f"  Leader × {config['n_leaders']} | Follower × {config['n_followers']} | Episodes: {config['max_episodes']}")
+    logger.info(f"  配置已保存: {config_save_path}")
+    logger.info(f"  日志已保存: {log_file}")
+    logger.info(f"{'='*60}\n")
     
-    # 创建训练器
+    # 创建训练器（传入logger）
+    config['logger'] = logger
     trainer = MASACTrainer(env, config)
     
     # 开始训练
@@ -244,15 +251,16 @@ def train(env, config, shoplistfile, env_params, yaml_config):
     curve_path = os.path.join(config['output_dir'], 'training_curve.png')
     plt.savefig(curve_path)
     plt.close()  # 关闭图表释放内存
-    print(f"训练曲线已保存到: {curve_path}")
+    logger.info(f"训练曲线已保存到: {curve_path}")
     
-    print(f"\n✅ 训练完成! 共{len(all_rewards)}轮")
-    print(f"总平均奖励: {np.mean(all_rewards):.2f}")
-    print(f"  - Leader平均: {np.mean(leader_rewards):.2f}")
-    print(f"  - Follower平均: {np.mean(follower_rewards):.2f}")
-    print(f"总最佳奖励: {np.max(all_rewards):.2f}")
-    print(f"模型已保存到: {config['output_dir']}")
-    print(f"训练数据已保存到: {shoplistfile}")
+    logger.info(f"\n✅ 训练完成! 共{len(all_rewards)}轮")
+    logger.info(f"总平均奖励: {np.mean(all_rewards):.2f}")
+    logger.info(f"  - Leader平均: {np.mean(leader_rewards):.2f}")
+    logger.info(f"  - Follower平均: {np.mean(follower_rewards):.2f}")
+    logger.info(f"总最佳奖励: {np.max(all_rewards):.2f}")
+    logger.info(f"模型已保存到: {config['output_dir']}")
+    logger.info(f"训练数据已保存到: {shoplistfile}")
+    logger.info(f"训练日志已保存到: {log_file}")
     
     # 关闭环境
     if not env_params['render']:
