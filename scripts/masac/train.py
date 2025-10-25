@@ -177,18 +177,21 @@ def train(env, config, shoplistfile, env_params, yaml_config):
         env_params: 环境参数
         yaml_config: 完整的YAML配置（用于保存）
     """
-    print('🎓 使用MASACTrainer训练中...')
-    print(f"配置信息:")
-    print(f"  - Leader数量: {config['n_leaders']}")
-    print(f"  - Follower数量: {config['n_followers']}")
-    print(f"  - 训练轮数: {config['max_episodes']}")
-    
     # ✅ 保存完整配置到输出目录
     import yaml
     config_save_path = os.path.join(config['output_dir'], 'config.yaml')
     with open(config_save_path, 'w', encoding='utf-8') as f:
         yaml.dump(yaml_config, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
-    print(f"  - 配置已保存: {config_save_path}\n")
+    
+    print(f"\n{'='*60}")
+    print(f"🎓 训练配置")
+    print(f"{'='*60}")
+    print(f"  Leader数量: {config['n_leaders']}")
+    print(f"  Follower数量: {config['n_followers']}")
+    print(f"  训练轮数: {config['max_episodes']}")
+    print(f"  运行设备: {device_utils.get_device(yaml_config.get('device', {})).type}")
+    print(f"  配置文件: {config_save_path}")
+    print(f"{'='*60}\n")
     
     # 创建训练器
     trainer = MASACTrainer(env, config)

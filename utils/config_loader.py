@@ -52,9 +52,6 @@ class ConfigLoader:
         config = self._add_defaults(config)
         
         print(f"✓ 成功加载配置文件: {self.config_path}")
-        print(f"  - 领导者数量: {config['environment']['n_leaders']}")
-        print(f"  - 跟随者数量: {config['environment']['n_followers']}")
-        print(f"  - 训练轮数: {config['training']['max_episodes']}")
         
         return config
     
