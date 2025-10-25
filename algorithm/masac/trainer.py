@@ -111,6 +111,8 @@ class MASACTrainer:
     def train(self):
         """执行训练"""
         all_rewards = []
+        leader_rewards = []      # ✅ 新增：记录leader奖励
+        follower_rewards = []    # ✅ 新增：记录follower奖励
         
         for episode in range(self.max_episodes):
             # 为每轮训练设置不同的种子
@@ -123,6 +125,8 @@ class MASACTrainer:
                     print(f"   Episode {episode}: seed={episode_seed}")
             state = self.env.reset()
             episode_reward = 0
+            episode_leader_reward = 0    # ✅ 新增：episode的leader奖励
+            episode_follower_reward = 0  # ✅ 新增：episode的follower奖励
             
             for step in range(self.max_steps):
                 # 选择动作
@@ -154,20 +158,32 @@ class MASACTrainer:
                     self._update_networks()
                 
                 state = next_state
-                episode_reward += reward.mean()
+                
+                # ✅ 分离统计leader和follower的奖励
+                episode_leader_reward += reward[0, 0]  # leader奖励
+                if self.n_followers > 0:
+                    episode_follower_reward += reward[1:, 0].mean()  # follower平均奖励
+                episode_reward += reward.sum()  # 总奖励
                 
                 if done:
                     break
             
             all_rewards.append(episode_reward)
-            print(f"Episode {episode}, Reward: {episode_reward:.2f}")
+            leader_rewards.append(episode_leader_reward)
+            follower_rewards.append(episode_follower_reward)
+            print(f"Episode {episode}, Total: {episode_reward:.2f}, Leader: {episode_leader_reward:.2f}, Follower: {episode_follower_reward:.2f}")
             
             # 保存模型（使用配置参数）
             if episode % self.save_interval == 0 and episode > self.save_threshold:
                 self.save_models(self.config.get('output_dir', 'output'))
                 print(f"  💾 模型已保存 (episode {episode})")
         
-        return all_rewards
+        # ✅ 返回所有奖励数据
+        return {
+            'total_rewards': all_rewards,
+            'leader_rewards': leader_rewards,
+            'follower_rewards': follower_rewards
+        }
     
     def _update_networks(self):
         """更新所有网络"""
