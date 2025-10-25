@@ -123,14 +123,10 @@ class MASACTrainer:
         follower_rewards = []    # ✅ 新增：记录follower奖励
         
         for episode in range(self.max_episodes):
-            # 为每轮训练设置不同的种子
+            # 为每轮训练设置不同的种子（不打印）
             if self.use_seed and self.use_episode_seed:
                 episode_seed = get_episode_seed(self.base_seed, episode)
                 set_seed(episode_seed)
-                if episode == 0:
-                    print(f"🎲 Episode种子模式已启用")
-                elif episode % 50 == 0:  # 每50轮打印一次
-                    print(f"   Episode {episode}: seed={episode_seed}")
             state = self.env.reset()
             episode_reward = 0
             episode_leader_reward = 0    # ✅ 新增：episode的leader奖励
