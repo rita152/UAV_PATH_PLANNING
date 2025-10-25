@@ -20,6 +20,7 @@ from algorithm.masac import MASACTrainer
 # 导入配置加载器、种子管理器和设备管理器
 from utils.config_loader import ConfigLoader
 from utils.seed_utils import setup_seeds
+from utils import device_utils  # ✅ 修复：导入device_utils模块
 from utils.device_utils import setup_device
 
 # 设置环境变量
@@ -184,13 +185,10 @@ def train(env, config, shoplistfile, env_params, yaml_config):
         yaml.dump(yaml_config, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
     
     print(f"\n{'='*60}")
-    print(f"🎓 训练配置")
+    print(f"🎓 开始训练")
     print(f"{'='*60}")
-    print(f"  Leader数量: {config['n_leaders']}")
-    print(f"  Follower数量: {config['n_followers']}")
-    print(f"  训练轮数: {config['max_episodes']}")
-    print(f"  运行设备: {device_utils.get_device(yaml_config.get('device', {})).type}")
-    print(f"  配置文件: {config_save_path}")
+    print(f"  Leader × {config['n_leaders']} | Follower × {config['n_followers']} | Episodes: {config['max_episodes']}")
+    print(f"  配置已保存: {config_save_path}")
     print(f"{'='*60}\n")
     
     # 创建训练器
