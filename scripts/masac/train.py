@@ -109,15 +109,7 @@ def create_env(env_params):
         env: 环境实例
         env_info: 环境信息字典
     """
-    print(f"\n{'='*60}")
-    print(f"🚁 初始化UAV路径规划环境")
-    print(f"{'='*60}")
-    print(f"  领导者数量: {env_params['n_leaders']}")
-    print(f"  跟随者数量: {env_params['n_followers']}")
-    print(f"  总智能体数: {env_params['n_leaders'] + env_params['n_followers']}")
-    print(f"  可视化渲染: {env_params['render']}")
-    print(f"  运行模式: 训练")
-    print(f"{'='*60}\n")
+    # 环境创建（简化输出）
     
     env = RlGame(
         n=env_params['n_leaders'],
@@ -174,7 +166,7 @@ def get_training_config(yaml_config, env_params, env_info, output_dir):
     return config
 
 
-def train(env, config, shoplistfile, env_params):
+def train(env, config, shoplistfile, env_params, yaml_config):
     """
     执行训练
     
@@ -183,14 +175,20 @@ def train(env, config, shoplistfile, env_params):
         config: 训练配置
         shoplistfile: 训练数据保存路径
         env_params: 环境参数
+        yaml_config: 完整的YAML配置（用于保存）
     """
     print('🎓 使用MASACTrainer训练中...')
     print(f"配置信息:")
-    print(f"  - 最大轮数: {config['max_episodes']}")
-    print(f"  - 每轮步数: {config['max_steps']}")
-    print(f"  - 批次大小: {config['batch_size']}")
-    print(f"  - 学习率: policy={config['policy_lr']}, value={config['value_lr']}, q={config['q_lr']}")
-    print(f"  - 智能体总数: {config['n_leaders'] + config['n_followers']}\n")
+    print(f"  - Leader数量: {config['n_leaders']}")
+    print(f"  - Follower数量: {config['n_followers']}")
+    print(f"  - 训练轮数: {config['max_episodes']}")
+    
+    # ✅ 保存完整配置到输出目录
+    import yaml
+    config_save_path = os.path.join(config['output_dir'], 'config.yaml')
+    with open(config_save_path, 'w', encoding='utf-8') as f:
+        yaml.dump(yaml_config, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
+    print(f"  - 配置已保存: {config_save_path}\n")
     
     # 创建训练器
     trainer = MASACTrainer(env, config)
@@ -268,16 +266,10 @@ def main():
     # 加载配置
     yaml_config, env_params = load_config(args)
     
-    # 设置计算设备
-    print(f"\n{'='*60}")
-    print(f"🖥️  计算设备设置")
-    print(f"{'='*60}")
+    # 设置计算设备（简化输出）
     device = setup_device(yaml_config)
     
-    # 设置随机种子
-    print(f"\n{'='*60}")
-    print(f"🎲 随机种子设置")
-    print(f"{'='*60}")
+    # 设置随机种子（简化输出）
     setup_seeds(yaml_config, episode=0)
     
     # 设置输出目录
@@ -289,8 +281,8 @@ def main():
     # 获取训练配置
     config = get_training_config(yaml_config, env_params, env_info, output_dir)
     
-    # 执行训练
-    train(env, config, shoplistfile, env_params)
+    # 执行训练（传入yaml_config用于保存）
+    train(env, config, shoplistfile, env_params, yaml_config)
 
 
 if __name__ == '__main__':

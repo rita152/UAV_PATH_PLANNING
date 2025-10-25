@@ -72,10 +72,12 @@ def setup_seeds(config: dict, episode: int = 0):
     
     set_seed(seed)
     
+    # 简化输出 - 只在初始化时打印一次
     if episode == 0:
-        print(f"✓ 随机种子已设置: base_seed={base_seed}")
         if use_episode_seed:
-            print(f"  每轮训练将使用不同种子: base_seed + episode")
+            print(f"  - 随机种子: {base_seed} (每轮+1)")
+        else:
+            print(f"  - 随机种子: {base_seed} (固定)")
     
     return seed
 

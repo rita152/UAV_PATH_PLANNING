@@ -25,16 +25,14 @@ def get_device(config: dict = None) -> torch.device:
     # 检查CUDA是否可用
     if use_cuda and torch.cuda.is_available():
         device = torch.device(f'cuda:{cuda_device}')
-        print(f"✓ 使用GPU设备: {torch.cuda.get_device_name(cuda_device)}")
-        print(f"  - CUDA版本: {torch.version.cuda}")
-        print(f"  - 设备ID: cuda:{cuda_device}")
-        print(f"  - 显存容量: {torch.cuda.get_device_properties(cuda_device).total_memory / 1024**3:.2f} GB")
+        # 简化输出 - 只显示设备名称
+        print(f"  - 运行设备: {torch.cuda.get_device_name(cuda_device)} (GPU)")
     else:
         device = torch.device('cpu')
         if use_cuda and not torch.cuda.is_available():
-            print(f"⚠️  配置要求使用CUDA，但CUDA不可用，降级使用CPU")
+            print(f"  - 运行设备: CPU (CUDA不可用)")
         else:
-            print(f"✓ 使用CPU设备")
+            print(f"  - 运行设备: CPU")
     
     return device
 

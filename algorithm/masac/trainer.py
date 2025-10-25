@@ -52,9 +52,17 @@ class MASACTrainer:
         self.max_episodes = config.get('max_episodes', 500)
         self.max_steps = config.get('max_steps', 1000)
         
-        # 获取计算设备
+        # 获取计算设备（不打印，由train.py统一打印）
         device_config = config.get('device_config', {})
-        self.device = get_device(device_config) if device_config else torch.device('cpu')
+        if device_config:
+            use_cuda = device_config.get('use_cuda', True)
+            cuda_device = device_config.get('cuda_device', 0)
+            if use_cuda and torch.cuda.is_available():
+                self.device = torch.device(f'cuda:{cuda_device}')
+            else:
+                self.device = torch.device('cpu')
+        else:
+            self.device = torch.device('cpu')
         
         # 初始化智能体（传入设备）
         total_agents = self.n_leaders + self.n_followers
