@@ -1,0 +1,128 @@
+
+============================================================
+🧪 开始测试
+============================================================
+  Leader × 1 | Follower × 1 | Episodes: 100
+  模型目录: output/baseline/1follower
+  测试日志: output/baseline/1follower/testing_20251025_173757.log
+============================================================
+
+✓ 模型加载成功
+Episode   0, Steps:   27, Total:  944.12, Leader:  941.09, [F0: 3.02] - ✓ success
+Episode   1, Steps:   26, Total:  970.29, Leader:  957.81, [F0: 12.47] - ✓ success
+Episode   2, Steps:   19, Total:  963.15, Leader:  957.98, [F0: 5.17] - ✓ success
+Episode   3, Steps:   34, Total:  947.40, Leader:  934.07, [F0: 13.33] - ✓ success
+Episode   4, Steps:   21, Total:  980.24, Leader:  970.33, [F0: 9.91] - ✓ success
+Episode   5, Steps:   23, Total:  946.53, Leader:  949.55, [F0: -3.01] - ✓ success
+Episode   6, Steps:   33, Total:  913.33, Leader:  917.30, [F0: -3.97] - ✓ success
+Episode   7, Steps:   22, Total:  973.52, Leader:  966.65, [F0: 6.87] - ✓ success
+Episode   8, Steps:   30, Total:  932.33, Leader:  932.24, [F0: 0.08] - ✓ success
+Episode   9, Steps:   24, Total:  953.52, Leader:  949.06, [F0: 4.46] - ✓ success
+Episode  10, Steps:   20, Total:  964.42, Leader:  964.11, [F0: 0.31] - ✓ success
+Episode  11, Steps:   26, Total:  973.62, Leader:  959.89, [F0: 13.72] - ✓ success
+Episode  12, Steps:   27, Total:  952.51, Leader:  946.48, [F0: 6.03] - ✓ success
+Episode  13, Steps:   26, Total:  970.25, Leader:  958.70, [F0: 11.55] - ✓ success
+Episode  14, Steps:   79, Total:  790.88, Leader:  818.97, [F0: -28.09] - ✓ success
+Episode  15, Steps:   29, Total:  938.92, Leader:  936.57, [F0: 2.35] - ✓ success
+Episode  16, Steps:   26, Total:  927.16, Leader:  936.74, [F0: -9.58] - ✓ success
+Episode  17, Steps:   20, Total:  940.80, Leader:  951.19, [F0: -10.39] - ✓ success
+Episode  18, Steps:   27, Total:  954.38, Leader:  948.59, [F0: 5.78] - ✓ success
+Episode  19, Steps:   25, Total:  970.71, Leader:  958.97, [F0: 11.74] - ✓ success
+Episode  20, Steps:   29, Total:  957.35, Leader:  946.56, [F0: 10.79] - ✓ success
+Episode  21, Steps:   35, Total:  857.74, Leader:  871.77, [F0: -14.04] - ✓ success
+Episode  22, Steps:   32, Total:  939.89, Leader:  934.22, [F0: 5.67] - ✓ success
+Episode  23, Steps:   24, Total:  985.64, Leader:  967.17, [F0: 18.46] - ✓ success
+Episode  24, Steps:   22, Total:  992.40, Leader:  977.40, [F0: 15.00] - ✓ success
+Episode  25, Steps:   23, Total:  977.56, Leader:  966.26, [F0: 11.30] - ✓ success
+Episode  26, Steps:   19, Total:  927.09, Leader:  942.30, [F0: -15.21] - ✓ success
+Episode  27, Steps:   31, Total:  942.93, Leader:  934.71, [F0: 8.22] - ✓ success
+Episode  28, Steps:   32, Total:  969.02, Leader:  946.62, [F0: 22.40] - ✓ success
+Episode  29, Steps:   24, Total:  983.06, Leader:  968.32, [F0: 14.74] - ✓ success
+Episode  30, Steps:   10, Total: -545.77, Leader: -541.04, [F0: -4.73] - ✗ failure
+Episode  31, Steps:   27, Total:  965.71, Leader:  955.82, [F0: 9.89] - ✓ success
+Episode  32, Steps:   26, Total:  927.61, Leader:  938.48, [F0: -10.87] - ✓ success
+Episode  33, Steps:    8, Total: -538.97, Leader: -534.01, [F0: -4.96] - ✗ failure
+Episode  34, Steps:    7, Total: -533.21, Leader: -528.99, [F0: -4.22] - ✗ failure
+Episode  35, Steps:   19, Total:  915.27, Leader:  942.14, [F0: -26.88] - ✓ success
+Episode  36, Steps:   30, Total:  958.07, Leader:  946.74, [F0: 11.33] - ✓ success
+Episode  37, Steps:   30, Total:  907.38, Leader:  918.36, [F0: -10.98] - ✓ success
+Episode  38, Steps:   32, Total:  905.64, Leader:  915.37, [F0: -9.72] - ✓ success
+Episode  39, Steps:   29, Total:  965.88, Leader:  951.39, [F0: 14.49] - ✓ success
+Episode  40, Steps:   33, Total:  961.93, Leader:  942.39, [F0: 19.54] - ✓ success
+Episode  41, Steps:   25, Total:  957.97, Leader:  953.09, [F0: 4.88] - ✓ success
+Episode  42, Steps:   27, Total:  983.11, Leader:  963.92, [F0: 19.19] - ✓ success
+Episode  43, Steps:   28, Total:  960.94, Leader:  948.98, [F0: 11.96] - ✓ success
+Episode  44, Steps:   29, Total:  960.03, Leader:  948.13, [F0: 11.90] - ✓ success
+Episode  45, Steps:   25, Total:  947.69, Leader:  947.45, [F0: 0.24] - ✓ success
+Episode  46, Steps:   25, Total:  961.34, Leader:  955.39, [F0: 5.95] - ✓ success
+Episode  47, Steps:   22, Total:  948.35, Leader:  948.94, [F0: -0.59] - ✓ success
+Episode  48, Steps:    6, Total: -531.69, Leader: -528.63, [F0: -3.06] - ✗ failure
+Episode  49, Steps:   30, Total:  959.99, Leader:  947.08, [F0: 12.90] - ✓ success
+Episode  50, Steps:   32, Total:  952.77, Leader:  940.37, [F0: 12.40] - ✓ success
+Episode  51, Steps:   26, Total:  972.36, Leader:  959.27, [F0: 13.08] - ✓ success
+Episode  52, Steps:   26, Total:  937.43, Leader:  943.37, [F0: -5.95] - ✓ success
+Episode  53, Steps:   24, Total:  928.31, Leader:  940.47, [F0: -12.16] - ✓ success
+Episode  54, Steps:   25, Total:  966.81, Leader:  960.39, [F0: 6.41] - ✓ success
+Episode  55, Steps:    7, Total: -528.90, Leader: -526.70, [F0: -2.20] - ✗ failure
+Episode  56, Steps:   29, Total:  958.78, Leader:  947.04, [F0: 11.74] - ✓ success
+Episode  57, Steps:   26, Total:  978.18, Leader:  962.78, [F0: 15.40] - ✓ success
+Episode  58, Steps:   32, Total:  946.29, Leader:  937.56, [F0: 8.73] - ✓ success
+Episode  59, Steps:   23, Total:  942.80, Leader:  949.91, [F0: -7.11] - ✓ success
+Episode  60, Steps:   28, Total:  954.08, Leader:  947.33, [F0: 6.75] - ✓ success
+Episode  61, Steps:   20, Total:  993.95, Leader:  978.45, [F0: 15.50] - ✓ success
+Episode  62, Steps:   29, Total:  968.20, Leader:  953.10, [F0: 15.10] - ✓ success
+Episode  63, Steps:   27, Total:  969.02, Leader:  956.01, [F0: 13.00] - ✓ success
+Episode  64, Steps:   10, Total: -543.48, Leader: -538.14, [F0: -5.34] - ✗ failure
+Episode  65, Steps:   21, Total:  936.68, Leader:  947.17, [F0: -10.50] - ✓ success
+Episode  66, Steps:   30, Total:  972.41, Leader:  951.67, [F0: 20.74] - ✓ success
+Episode  67, Steps:   25, Total:  955.04, Leader:  952.35, [F0: 2.69] - ✓ success
+Episode  68, Steps:   26, Total:  908.91, Leader:  926.05, [F0: -17.14] - ✓ success
+Episode  69, Steps:   31, Total:  959.60, Leader:  944.77, [F0: 14.83] - ✓ success
+Episode  70, Steps:   29, Total:  935.90, Leader:  933.99, [F0: 1.91] - ✓ success
+Episode  71, Steps:   26, Total:  953.67, Leader:  948.09, [F0: 5.58] - ✓ success
+Episode  72, Steps:   33, Total:  945.61, Leader:  932.68, [F0: 12.92] - ✓ success
+Episode  73, Steps:   22, Total:  973.29, Leader:  963.51, [F0: 9.78] - ✓ success
+Episode  74, Steps:   28, Total:  930.96, Leader:  937.36, [F0: -6.40] - ✓ success
+Episode  75, Steps:   22, Total:  984.42, Leader:  971.33, [F0: 13.09] - ✓ success
+Episode  76, Steps:   16, Total:  940.33, Leader:  951.51, [F0: -11.18] - ✓ success
+Episode  77, Steps:   26, Total:  962.78, Leader:  950.55, [F0: 12.23] - ✓ success
+Episode  78, Steps:   23, Total:  981.37, Leader:  967.63, [F0: 13.74] - ✓ success
+Episode  79, Steps:   23, Total:  960.39, Leader:  959.21, [F0: 1.18] - ✓ success
+Episode  80, Steps:   29, Total:  967.98, Leader:  954.61, [F0: 13.37] - ✓ success
+Episode  81, Steps:   26, Total:  977.25, Leader:  962.60, [F0: 14.66] - ✓ success
+Episode  82, Steps:   29, Total:  931.40, Leader:  933.29, [F0: -1.89] - ✓ success
+Episode  83, Steps:   31, Total:  944.78, Leader:  935.53, [F0: 9.25] - ✓ success
+Episode  84, Steps:   28, Total:  944.81, Leader:  941.44, [F0: 3.37] - ✓ success
+Episode  85, Steps:   25, Total:  982.47, Leader:  964.29, [F0: 18.19] - ✓ success
+Episode  86, Steps:   26, Total:  955.82, Leader:  953.73, [F0: 2.09] - ✓ success
+Episode  87, Steps:   24, Total:  921.57, Leader:  933.19, [F0: -11.62] - ✓ success
+Episode  88, Steps:   28, Total:  938.92, Leader:  939.22, [F0: -0.30] - ✓ success
+Episode  89, Steps:   28, Total:  966.22, Leader:  952.01, [F0: 14.21] - ✓ success
+Episode  90, Steps:    4, Total: -513.46, Leader: -512.97, [F0: -0.49] - ✗ failure
+Episode  91, Steps:   26, Total:  952.58, Leader:  949.22, [F0: 3.36] - ✓ success
+Episode  92, Steps:   23, Total:  950.62, Leader:  952.89, [F0: -2.27] - ✓ success
+Episode  93, Steps:   26, Total:  943.57, Leader:  945.25, [F0: -1.68] - ✓ success
+Episode  94, Steps:   17, Total:  961.72, Leader:  966.40, [F0: -4.68] - ✓ success
+Episode  95, Steps:   27, Total:  972.57, Leader:  957.41, [F0: 15.16] - ✓ success
+Episode  96, Steps:   29, Total:  954.32, Leader:  943.93, [F0: 10.39] - ✓ success
+Episode  97, Steps:   28, Total:  959.36, Leader:  950.83, [F0: 8.54] - ✓ success
+Episode  98, Steps:   29, Total:  944.52, Leader:  938.36, [F0: 6.17] - ✓ success
+Episode  99, Steps:   27, Total:  923.92, Leader:  934.53, [F0: -10.61] - ✓ success
+
+==================================================
+测试结果汇总
+==================================================
+任务完成率: 93.00%
+总平均奖励: 847.57 ± 379.87
+  - Leader平均: 843.48
+  - Follower平均: 4.09
+平均飞行步数: 25.58
+平均飞行路程: 383.08
+平均能量损耗: 36.08
+平均编队保持率: 52.94%
+成功次数: 93/100
+==================================================
+
+✅ 测试完成!
+测试结果已保存: output/baseline/1follower/test_results_20251025_173758.json
+测试日志已保存: output/baseline/1follower/testing_20251025_173757.log

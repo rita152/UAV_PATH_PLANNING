@@ -45,6 +45,15 @@ class MASACTester:
         device_config = config.get('device_config', {})
         self.device = get_device(device_config) if device_config else torch.device('cpu')
         
+        # 获取logger（如果有）
+        self.logger = config.get('logger', None)
+        
+        # 获取种子配置（用于测试时设置episode种子）
+        self.seed_config = config.get('seed_config', {})
+        self.use_seed = self.seed_config.get('enabled', False)
+        self.base_seed = self.seed_config.get('base_seed', 10000)  # 默认10000（测试范围）
+        self.use_episode_seed = self.seed_config.get('use_episode_seed', True)
+        
         # 初始化Actor（仅用于测试，传入设备）
         total_agents = self.n_leaders + self.n_followers
         self.actors = [
@@ -70,7 +79,7 @@ class MASACTester:
         # 加载leader模型
         leader_path = os.path.join(output_dir, 'leader.pth')
         if os.path.exists(leader_path):
-            checkpoint = torch.load(leader_path, map_location=self.device)
+            checkpoint = torch.load(leader_path, map_location=self.device, weights_only=False)
             leader_models = checkpoint['models']
             saved_n_leaders = checkpoint['n_leaders']
             
@@ -87,7 +96,7 @@ class MASACTester:
         # 加载follower模型
         follower_path = os.path.join(output_dir, 'follower.pth')
         if os.path.exists(follower_path):
-            checkpoint = torch.load(follower_path, map_location=self.device)
+            checkpoint = torch.load(follower_path, map_location=self.device, weights_only=False)
             follower_models = checkpoint['models']
             saved_n_followers = checkpoint['n_followers']
             
@@ -118,8 +127,6 @@ class MASACTester:
         for actor in self.actors:
             actor.action_net.eval()
         
-        print(f"开始测试，共 {self.test_episodes} 轮...")
-        
         win_count = 0
         total_rewards = []
         leader_rewards = []
@@ -128,13 +135,22 @@ class MASACTester:
         formation_keeping_rates = []
         all_integral_V = []
         all_integral_U = []
+        episode_follower_rewards_individual = []
         
         for episode in range(self.test_episodes):
-            # ✅ 适配新的reset接口
-            state, info = self.env.reset()
+            # 为每个测试episode设置独立种子（与训练逻辑一致，但使用不同种子范围）
+            if self.use_seed and self.use_episode_seed:
+                from utils.seed_utils import get_episode_seed, set_seed
+                episode_seed = get_episode_seed(self.base_seed, episode)
+                set_seed(episode_seed)
+                state, info = self.env.reset(seed=episode_seed)
+            else:
+                state, info = self.env.reset()
+            
             episode_reward = 0
             leader_episode_reward = 0
             follower_episode_reward = 0
+            follower_rewards_individual = [0.0] * self.n_followers
             step = 0
             integral_V = 0
             integral_U = 0
@@ -167,6 +183,8 @@ class MASACTester:
                 leader_episode_reward += reward[0, 0]
                 if self.n_followers > 0:
                     follower_episode_reward += reward[1:, 0].mean()
+                    for f_idx in range(self.n_followers):
+                        follower_rewards_individual[f_idx] += reward[1 + f_idx, 0]
                 episode_reward += reward.sum()
                 
                 # 累计编队计数（从info中获取）
@@ -189,17 +207,36 @@ class MASACTester:
             total_steps.append(step + 1)
             all_integral_V.append(integral_V)
             all_integral_U.append(integral_U)
+            episode_follower_rewards_individual.append(follower_rewards_individual)
             
             # 编队保持率计算
-            if step > 0 and self.n_followers > 0:
+            if self.n_followers > 0:
                 formation_rate = episode_team_counter / ((step + 1) * self.n_followers)
                 formation_keeping_rates.append(formation_rate)
             
-            # ✅ 更新打印信息，使用info判断
-            win_status = '是' if info.get('win', False) else '否'
-            print(f"测试轮次 {episode + 1}/{self.test_episodes}, "
-                  f"奖励: {episode_reward:.2f}, 步数: {step + 1}, "
-                  f"胜利: {win_status}")
+            # 简洁的进度打印（与train.py风格一致）
+            follower_str = ", ".join([f"F{i}: {follower_rewards_individual[i]:.2f}" 
+                                      for i in range(self.n_followers)])
+            
+            # ✅ 判断结束原因
+            if terminated:
+                if info.get('win', False):
+                    status = "✓ success"
+                else:
+                    status = "✗ failure"
+            elif truncated:
+                status = "⏱ timeout"
+            else:
+                status = "⏹ stopped"
+            
+            msg = (f"Episode {episode:3d}, Steps: {step+1:4d}, Total: {episode_reward:7.2f}, "
+                   f"Leader: {leader_episode_reward:7.2f}, [{follower_str}] - {status}")
+            
+            # 使用logger或print
+            if self.logger:
+                self.logger.info(msg)
+            else:
+                print(msg)
         
         # 计算统计结果
         results = {
@@ -213,23 +250,36 @@ class MASACTester:
             'avg_flight_distance': np.mean(all_integral_V),
             'avg_energy_consumption': np.mean(all_integral_U),
             'total_episodes': self.test_episodes,
-            'win_count': win_count
+            'win_count': win_count,
+            'all_rewards': total_rewards,
+            'all_leader_rewards': leader_rewards,
+            'all_follower_rewards': follower_rewards,
+            'all_follower_rewards_individual': episode_follower_rewards_individual,
         }
         
-        # 打印测试结果
-        print("\n" + "="*50)
-        print("测试结果汇总")
-        print("="*50)
-        print(f"任务完成率: {results['success_rate']*100:.2f}%")
-        print(f"总平均奖励: {results['total_avg_reward']:.2f} ± {results['std_reward']:.2f}")
-        print(f"  - Leader奖励: {results['leader_avg_reward']:.2f}")
-        print(f"  - Follower奖励: {results['follower_avg_reward']:.2f}")
-        print(f"平均飞行时间: {results['avg_steps']:.2f}")
-        print(f"平均飞行路程: {results['avg_flight_distance']:.2f}")
-        print(f"平均能量损耗: {results['avg_energy_consumption']:.2f}")
-        print(f"平均编队保持率: {results['avg_formation_keeping']*100:.2f}%")
-        print(f"成功次数: {results['win_count']}/{results['total_episodes']}")
-        print("="*50)
+        # 打印测试结果汇总
+        msg_list = [
+            "",
+            "="*50,
+            "测试结果汇总",
+            "="*50,
+            f"任务完成率: {results['success_rate']*100:.2f}%",
+            f"总平均奖励: {results['total_avg_reward']:.2f} ± {results['std_reward']:.2f}",
+            f"  - Leader平均: {results['leader_avg_reward']:.2f}",
+            f"  - Follower平均: {results['follower_avg_reward']:.2f}",
+            f"平均飞行步数: {results['avg_steps']:.2f}",
+            f"平均飞行路程: {results['avg_flight_distance']:.2f}",
+            f"平均能量损耗: {results['avg_energy_consumption']:.2f}",
+            f"平均编队保持率: {results['avg_formation_keeping']*100:.2f}%",
+            f"成功次数: {results['win_count']}/{results['total_episodes']}",
+            "="*50
+        ]
+        
+        for msg in msg_list:
+            if self.logger:
+                self.logger.info(msg)
+            else:
+                print(msg)
         
         return results
     
@@ -247,10 +297,21 @@ class MASACTester:
         for actor in self.actors:
             actor.action_net.eval()
         
-        print("开始单回合测试...")
+        msg = "开始单回合测试..."
+        if self.logger:
+            self.logger.info(msg)
+        else:
+            print(msg)
         
-        # ✅ 适配新的reset接口
-        state, info = self.env.reset()
+        # 设置测试种子
+        if self.use_seed:
+            from utils.seed_utils import set_seed
+            test_seed = self.base_seed  # 使用基础测试种子
+            set_seed(test_seed)
+            state, info = self.env.reset(seed=test_seed)
+        else:
+            state, info = self.env.reset()
+        
         episode_reward = 0
         trajectory = []
         
@@ -293,8 +354,11 @@ class MASACTester:
         }
         
         win_status = '是' if results['win'] else '否'
-        print(f"单回合测试完成: 奖励={episode_reward:.2f}, "
-              f"步数={step + 1}, 胜利={win_status}")
+        msg = f"单回合测试完成: 奖励={episode_reward:.2f}, 步数={step + 1}, 胜利={win_status}"
+        if self.logger:
+            self.logger.info(msg)
+        else:
+            print(msg)
         
         return results
 

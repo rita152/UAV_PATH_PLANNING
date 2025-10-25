@@ -61,14 +61,14 @@ class RlGame(gym.Env):
         
         if self.Render:
             pygame.init()
-            pygame.mixer.init()
+            # pygame.mixer.init()  # ✅ 删除音频初始化（服务器无音频设备）
             self.SCREEN = pygame.display.set_mode((C.SCREEN_W, C.SCREEN_H))
             pygame.display.set_caption("基于深度强化学习的空战场景无人机路径规划软件")
 
             # 获取项目根目录
             project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             self.GRAPHICS = tools.load_graphics(os.path.join(project_root, 'assignment', 'source', 'image'))
-            self.SOUND = tools.load_sound(os.path.join(project_root, 'assignment', 'source', 'music'))
+            # self.SOUND = tools.load_sound(os.path.join(project_root, 'assignment', 'source', 'music'))  # ✅ 删除音频加载
             self.clock = pygame.time.Clock()
             self.mouse_pos = (100, 100)
             pygame.time.set_timer(C.CREATE_FOLLOWER_EVENT, C.FOLLOWER_MAKE_TIME)

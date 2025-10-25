@@ -372,7 +372,7 @@ class MASACTrainer:
         # 加载leader模型
         leader_path = os.path.join(output_dir, 'leader.pth')
         if os.path.exists(leader_path):
-            checkpoint = torch.load(leader_path, map_location=self.device)
+            checkpoint = torch.load(leader_path, map_location=self.device, weights_only=False)
             leader_models = checkpoint['models']
             saved_n_leaders = checkpoint['n_leaders']
             
@@ -390,7 +390,7 @@ class MASACTrainer:
         # 加载follower模型
         follower_path = os.path.join(output_dir, 'follower.pth')
         if os.path.exists(follower_path):
-            checkpoint = torch.load(follower_path, map_location=self.device)
+            checkpoint = torch.load(follower_path, map_location=self.device, weights_only=False)
             follower_models = checkpoint['models']
             saved_n_followers = checkpoint['n_followers']
             
