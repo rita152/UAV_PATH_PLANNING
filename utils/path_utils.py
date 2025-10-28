@@ -130,9 +130,9 @@ def get_model_path(model_name: str, subdir: str = '') -> str:
         str: 模型文件的绝对路径
         
     Example:
-        >>> model_path = get_model_path('Path_SAC_actor_L1.pth')
+        >>> model_path = get_model_path('leader.pth')
         >>> print(model_path)
-        /home/user/UAV_PATH_PLANNING/saved_models/Path_SAC_actor_L1.pth
+        /home/user/UAV_PATH_PLANNING/saved_models/leader.pth
     """
     save_dir = get_save_dir(subdir)
     return os.path.join(save_dir, model_name)

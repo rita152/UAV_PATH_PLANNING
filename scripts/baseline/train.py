@@ -98,9 +98,10 @@ def main():
     print("\n" + "="*60)
     print("训练完成！")
     print("="*60)
-    print(f"训练数据已保存到: saved_models/data/{params['data_save_name']}")
-    print(f"Leader模型已保存到: saved_models/Path_SAC_actor_L1.pth")
-    print(f"Follower模型已保存到: saved_models/Path_SAC_actor_F1.pth")
+    print(f"训练数据: saved_models/data/{params['data_save_name']}")
+    print(f"Leader模型: saved_models/leader.pth")
+    if params['n_follower'] > 0:
+        print(f"Follower模型: saved_models/follower.pth (所有Follower共享)")
     print("="*60)
 
 

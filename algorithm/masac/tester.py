@@ -88,9 +88,9 @@ class Tester:
         self.hidden_dim = hidden_dim
         self.policy_lr = policy_lr
         
-        # 模型路径
-        self.leader_model_path = leader_model_path or get_model_path('Path_SAC_actor_L1.pth')
-        self.follower_model_path = follower_model_path or get_model_path('Path_SAC_actor_F1.pth')
+        # 模型路径（所有Follower共享同一个权重文件）
+        self.leader_model_path = leader_model_path or get_model_path('leader.pth')
+        self.follower_model_path = follower_model_path or get_model_path('follower.pth')
     
     def _load_actor(self, model_path):
         """
@@ -121,10 +121,11 @@ class Tester:
     def _select_actions(self, leader_actor, follower_actor, state):
         """
         选择动作（使用训练好的策略，无探索噪声）
+        所有Leader使用leader_actor，所有Follower使用follower_actor（共享权重）
         
         Args:
-            leader_actor: Leader的Actor
-            follower_actor: Follower的Actor
+            leader_actor: Leader的Actor（所有Leader共享）
+            follower_actor: Follower的Actor（所有Follower共享）
             state: 当前状态
             
         Returns:
@@ -132,13 +133,13 @@ class Tester:
         """
         action = np.zeros((self.n_agents, self.action_dim))
         
-        # Leader 选择动作
+        # Leader 选择动作（所有Leader使用相同的策略网络）
         for i in range(self.n_leader):
             action[i] = leader_actor.choose_action(state[i])
         
-        # Follower 选择动作
+        # Follower 选择动作（所有Follower使用相同的策略网络）
         for i in range(self.n_follower):
-            action[i + 1] = follower_actor.choose_action(state[i + 1])
+            action[self.n_leader + i] = follower_actor.choose_action(state[self.n_leader + i])
         
         return action
     

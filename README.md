@@ -311,9 +311,11 @@ SAC是一种基于最大熵的强化学习算法，具有以下特点：
 
 训练完成后，系统会自动保存：
 
-- 神经网络模型：`Path_SAC_actor_L1.pth`（Leader）、`Path_SAC_actor_F1.pth`（Follower）
+- 神经网络模型：`leader.pth`（Leader）、`follower.pth`（Follower）
 - 训练数据：包含奖励曲线的pickle文件
 - 可视化图表：Total reward、Leader reward、Follower reward曲线
+
+**注意**：所有Follower共享相同的策略网络权重（`follower.pth`）
 
 ### 评估指标
 
@@ -418,9 +420,14 @@ AI 将从以下 **6 个维度**进行深度分析：
 ## 📂 模型保存
 
 训练过程中，模型会自动保存到 `saved_models/` 目录：
-- `Path_SAC_actor_L1.pth` - Leader 模型
-- `Path_SAC_actor_F1.pth` - Follower 模型
+- `leader.pth` - Leader 模型（所有Leader共享）
+- `follower.pth` - Follower 模型（所有Follower共享）
 - `MASAC_new1.pkl` - 训练数据
+
+**共享权重设计**：
+- 所有Leader智能体使用相同的策略网络（`leader.pth`）
+- 所有Follower智能体使用相同的策略网络（`follower.pth`）
+- 无论有多少Follower，只保存一个follower.pth文件
 
 **建议**：将 `saved_models/` 目录添加到 `.gitignore` 以避免提交大文件。
 
