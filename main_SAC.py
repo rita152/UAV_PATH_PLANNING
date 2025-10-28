@@ -1,12 +1,11 @@
 from rl_env.path_env import RlGame
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
 import numpy as np
 from matplotlib import pyplot as plt
 import os
 import pickle as pkl
 from utils import get_model_path, get_data_path
+from algorithm.masac import Actor, Critic, Entropy, Memory, Ornstein_Uhlenbeck_Noise
 
 # 保存文件路径（使用路径工具自动管理）
 shoplistfile = get_data_path('MASAC_new1.pkl')
@@ -14,11 +13,11 @@ shoplistfile_test = get_data_path('MASAC_d_test2.pkl')
 shoplistfile_test1 = get_data_path('MASAC_compare.pkl')
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 N_LEADER=1
-M_FOLLOWER=1
+N_FOLLOWER=1
 RENDER=False
 TRAIN_NUM = 1
 TEST_EPIOSDE=100
-env = RlGame(n=N_LEADER,m=M_FOLLOWER,render=RENDER).unwrapped
+env = RlGame(n=N_LEADER,m=N_FOLLOWER,render=RENDER).unwrapped
 state_number=7
 action_number=env.action_space.shape[0]
 max_action = env.action_space.high[0]
@@ -33,174 +32,18 @@ BATCH = 128
 tau = 1e-2
 MemoryCapacity=20000
 Switch=0
-class Ornstein_Uhlenbeck_Noise:
-    def __init__(self, mu, sigma=0.1, theta=0.1, dt=1e-2, x0=None):
-        self.theta = theta
-        self.mu = mu
-        self.sigma = sigma
-        self.dt = dt
-        self.x0 = x0
-        self.reset()
 
-    def __call__(self):
-        x = self.x_prev + \
-            self.theta * (self.mu - self.x_prev) * self.dt + \
-            self.sigma * np.sqrt(self.dt) * np.random.normal(size=self.mu.shape)
-        '''
-        后两行是dXt，其中后两行的前一行是θ(μ-Xt)dt，后一行是σεsqrt(dt)
-        '''
-        self.x_prev = x
-        return x
+# 网络隐藏层维度
+HIDDEN_DIM = 256
 
-    def reset(self):
-        if self.x0 is not None:
-            self.x_prev = self.x0
-        else:
-            self.x_prev = np.zeros_like(self.mu)
-class ActorNet(nn.Module):
-    def __init__(self,inp,outp):
-        super(ActorNet, self).__init__()
-        self.in_to_y1=nn.Linear(inp,256)
-        self.in_to_y1.weight.data.normal_(0,0.1)
-        self.y1_to_y2=nn.Linear(256,256)
-        self.y1_to_y2.weight.data.normal_(0,0.1)
-        self.out=nn.Linear(256,outp)
-        self.out.weight.data.normal_(0,0.1)
-        self.std_out = nn.Linear(256, outp)
-        self.std_out.weight.data.normal_(0, 0.1)
-
-    def forward(self,inputstate):
-        inputstate=self.in_to_y1(inputstate)
-        inputstate=F.relu(inputstate)
-        inputstate=self.y1_to_y2(inputstate)
-        inputstate=F.relu(inputstate)
-        mean=max_action*torch.tanh(self.out(inputstate))#输出概率分布的均值mean
-        log_std=self.std_out(inputstate)#softplus激活函数的值域>0
-        log_std=torch.clamp(log_std,-20,2)
-        std=log_std.exp()
-        return mean,std
-
-class CriticNet(nn.Module):
-    def __init__(self,input,output):
-        super(CriticNet, self).__init__()
-        #q1
-        self.in_to_y1=nn.Linear(input+output,256)
-        self.in_to_y1.weight.data.normal_(0,0.1)
-        self.y1_to_y2=nn.Linear(256,256)
-        self.y1_to_y2.weight.data.normal_(0,0.1)
-        self.out=nn.Linear(256,1)
-        self.out.weight.data.normal_(0,0.1)
-        #q2
-        self.q2_in_to_y1 = nn.Linear(input+output, 256)
-        self.q2_in_to_y1.weight.data.normal_(0, 0.1)
-        self.q2_y1_to_y2 = nn.Linear(256, 256)
-        self.q2_y1_to_y2.weight.data.normal_(0, 0.1)
-        self.q2_out = nn.Linear(256, 1)
-        self.q2_out.weight.data.normal_(0, 0.1)
-    def forward(self,s,a):
-        inputstate = torch.cat((s, a), dim=1)
-        #q1
-        q1=self.in_to_y1(inputstate)
-        q1=F.relu(q1)
-        q1=self.y1_to_y2(q1)
-        q1=F.relu(q1)
-        q1=self.out(q1)
-        #q2
-        q2 = self.q2_in_to_y1(inputstate)
-        q2 = F.relu(q2)
-        q2 = self.q2_y1_to_y2(q2)
-        q2 = F.relu(q2)
-        q2 = self.q2_out(q2)
-        return q1,q2
-
-class Memory():
-    def __init__(self,capacity,dims):
-        self.capacity=capacity
-        self.mem=np.zeros((capacity,dims))
-        self.memory_counter=0
-    '''存储记忆'''
-    def store_transition(self,s,a,r,s_):
-        tran = np.hstack((s, a,r, s_))  # 把s,a,r,s_困在一起，水平拼接
-        index = self.memory_counter % self.capacity#除余得索引
-        self.mem[index, :] = tran  # 给索引存值，第index行所有列都为其中一次的s,a,r,s_；mem会是一个capacity行，（s+a+r+s_）列的数组
-        self.memory_counter+=1
-    '''随机从记忆库里抽取'''
-    def sample(self,n):
-        assert self.memory_counter>=self.capacity,'记忆库没有存满记忆'
-        sample_index = np.random.choice(self.capacity, n)#从capacity个记忆里随机抽取n个为一批，可得到抽样后的索引号
-        new_mem = self.mem[sample_index, :]#由抽样得到的索引号在所有的capacity个记忆中  得到记忆s，a，r，s_
-        return new_mem
-class Actor():
-    def __init__(self):
-        self.action_net=ActorNet(state_number,action_number)#这只是均值mean
-        self.optimizer=torch.optim.Adam(self.action_net.parameters(),lr=policy_lr)
-
-    def choose_action(self,s):
-        inputstate = torch.FloatTensor(s)
-        mean,std=self.action_net(inputstate)
-        dist = torch.distributions.Normal(mean, std)
-        action=dist.sample()
-        action=torch.clamp(action,min_action,max_action)
-        return action.detach().numpy()
-    def evaluate(self,s):
-        inputstate = torch.FloatTensor(s)
-        mean,std=self.action_net(inputstate)
-        dist = torch.distributions.Normal(mean, std)
-        noise = torch.distributions.Normal(0, 1)
-        z = noise.sample()
-        action=torch.tanh(mean+std*z)
-        action=torch.clamp(action,min_action,max_action)
-        action_logprob=dist.log_prob(mean+std*z)-torch.log(1-action.pow(2)+1e-6)
-        return action,action_logprob
-
-    def learn(self,actor_loss):
-        loss=actor_loss
-        self.optimizer.zero_grad()
-        loss.backward()
-        self.optimizer.step()
-
-class Entroy():
-    def __init__(self):
-        self.target_entropy = -0.1
-        self.log_alpha = torch.zeros(1, requires_grad=True)
-        self.alpha = self.log_alpha.exp()
-        self.optimizer = torch.optim.Adam([self.log_alpha], lr=q_lr)
-
-    def learn(self,entroy_loss):
-        loss=entroy_loss
-        self.optimizer.zero_grad()
-        loss.backward()
-        self.optimizer.step()
-
-class Critic():
-    def __init__(self):
-        self.critic_v,self.target_critic_v=CriticNet(state_number*(N_LEADER+M_FOLLOWER),action_number),CriticNet(state_number*(N_LEADER+M_FOLLOWER),action_number)#改网络输入状态，生成一个Q值
-        self.target_critic_v.load_state_dict(self.critic_v.state_dict())
-        self.optimizer = torch.optim.Adam(self.critic_v.parameters(), lr=value_lr,eps=1e-5)
-        self.lossfunc = nn.MSELoss()
-    def soft_update(self):
-        for target_param, param in zip(self.target_critic_v.parameters(), self.critic_v.parameters()):
-            target_param.data.copy_(target_param.data * (1.0 - tau) + param.data * tau)
-
-    def get_v(self,s,a):
-        return self.critic_v(s,a)
-
-    def target_get_v(self,s,a):
-        return self.target_critic_v(s,a)
-
-    def learn(self,current_q1,current_q2,target_q):
-        loss = self.lossfunc(current_q1, target_q) + self.lossfunc(current_q2, target_q)
-        self.optimizer.zero_grad()
-        loss.backward()
-        self.optimizer.step()
 def main():
     run(env)
 def run(env):
     if Switch==0:
         try:
-            assert M_FOLLOWER == 1
+            assert N_FOLLOWER == 1
         except:
-            print('程序终止，被逮到~嘿嘿，哥们儿预判到你会犯错，这段程序中变量\'M_FOLLOWER\'的值必须为1，请把它的值改为1。\n' 
+            print('程序终止，被逮到~嘿嘿，哥们儿预判到你会犯错，这段程序中变量\'N_FOLLOWER\'的值必须为1，请把它的值改为1。\n' 
                   '改为1之后程序一定会报错，这是因为组数越界，更改path_env.py文件中的跟随者无人机初始化个数；删除多余的\n'
                   '求距离函数，即变量dis_1_agent_0_to_3等，以及提到变量dis_1_agent_0_to_3等的地方；删除画无人机轨迹的\n'
                   '函数；删除step函数的最后一个返回值dis_1_agent_0_to_1；将player.py文件中的变量dt改为1；即可开始训练！\n'
@@ -211,22 +54,44 @@ def run(env):
             all_ep_r0 = [[] for i in range(TRAIN_NUM)]
             all_ep_r1 = [[] for i in range(TRAIN_NUM)]
             for k in range(TRAIN_NUM):
-                actors = [None for _ in range(N_LEADER+M_FOLLOWER)]
-                critics = [None for _ in range(N_LEADER+M_FOLLOWER)]
-                entroys = [None for _ in range(N_LEADER+M_FOLLOWER)]
-                for i in range(N_LEADER+M_FOLLOWER):
-                    actors[i] = Actor()
-                    critics[i] = Critic()
-                    entroys[i] = Entroy()
-                M = Memory(MemoryCapacity, 2 * state_number*(N_LEADER+M_FOLLOWER) + action_number*(N_LEADER+M_FOLLOWER) + 1*(N_LEADER+M_FOLLOWER))
-                ou_noise = Ornstein_Uhlenbeck_Noise(mu=np.zeros(((N_LEADER+M_FOLLOWER), action_number)))
-                action=np.zeros(((N_LEADER+M_FOLLOWER), action_number))
+                actors = [None for _ in range(N_LEADER+N_FOLLOWER)]
+                critics = [None for _ in range(N_LEADER+N_FOLLOWER)]
+                entropies = [None for _ in range(N_LEADER+N_FOLLOWER)]
+                for i in range(N_LEADER+N_FOLLOWER):
+                    actors[i] = Actor(
+                        state_dim=state_number,
+                        action_dim=action_number,
+                        max_action=max_action,
+                        min_action=min_action,
+                        hidden_dim=HIDDEN_DIM,
+                        policy_lr=policy_lr
+                    )
+                    critics[i] = Critic(
+                        state_dim=state_number*(N_LEADER+N_FOLLOWER),
+                        action_dim=action_number,
+                        hidden_dim=HIDDEN_DIM,
+                        value_lr=value_lr,
+                        tau=tau
+                    )
+                    entropies[i] = Entropy(
+                        target_entropy=-0.1,
+                        lr=q_lr
+                    )
+                transition_dim = 2 * state_number*(N_LEADER+N_FOLLOWER) + action_number*(N_LEADER+N_FOLLOWER) + 1*(N_LEADER+N_FOLLOWER)
+                M = Memory(capacity=MemoryCapacity, transition_dim=transition_dim)
+                ou_noise = Ornstein_Uhlenbeck_Noise(
+                    mean=np.zeros(((N_LEADER+N_FOLLOWER), action_number)),
+                    sigma=0.1,
+                    theta=0.1,
+                    dt=1e-2
+                )
+                action=np.zeros(((N_LEADER+N_FOLLOWER), action_number))
                 # aaa = np.zeros((N_LEADER, state_number))
                 for episode in range(EP_MAX):
                     observation = env.reset()  # 环境重置
                     reward_totle,reward_totle0,reward_totle1 = 0,0,0
                     for timestep in range(EP_LEN):
-                        for i in range(N_LEADER+M_FOLLOWER):
+                        for i in range(N_LEADER+N_FOLLOWER):
                             action[i] = actors[i].choose_action(observation[i])
                         if episode <= 20:
                             noise = ou_noise()
@@ -235,34 +100,33 @@ def run(env):
                         action = action + noise
                         action = np.clip(action, -max_action, max_action)
                         observation_, reward,done,win,team_counter= env.step(action)  # 单步交互
-                        M.store_transition(observation.flatten(), action.flatten(), reward.flatten(), observation_.flatten())
+                        M.store(observation.flatten(), action.flatten(), reward.flatten(), observation_.flatten())
                         # 记忆库存储
-                        # 有的2000个存储数据就开始学习
-                        if M.memory_counter > MemoryCapacity:
+                        # 当记忆库数据超过容量时开始学习
+                        if M.counter > MemoryCapacity:
                             b_M = M.sample(BATCH)
-                            b_s = b_M[:, :state_number*(N_LEADER+M_FOLLOWER)]
-                            b_a = b_M[:, state_number*(N_LEADER+M_FOLLOWER): state_number*(N_LEADER+M_FOLLOWER) + action_number*(N_LEADER+M_FOLLOWER)]
-                            b_r = b_M[:, -state_number*(N_LEADER+M_FOLLOWER) - 1*(N_LEADER+M_FOLLOWER): -state_number*(N_LEADER+M_FOLLOWER)]
-                            b_s_ = b_M[:, -state_number*(N_LEADER+M_FOLLOWER):]
+                            b_s = b_M[:, :state_number*(N_LEADER+N_FOLLOWER)]
+                            b_a = b_M[:, state_number*(N_LEADER+N_FOLLOWER): state_number*(N_LEADER+N_FOLLOWER) + action_number*(N_LEADER+N_FOLLOWER)]
+                            b_r = b_M[:, -state_number*(N_LEADER+N_FOLLOWER) - 1*(N_LEADER+N_FOLLOWER): -state_number*(N_LEADER+N_FOLLOWER)]
+                            b_s_ = b_M[:, -state_number*(N_LEADER+N_FOLLOWER):]
                             b_s = torch.FloatTensor(b_s)
                             b_a = torch.FloatTensor(b_a)
                             b_r = torch.FloatTensor(b_r)
                             b_s_ = torch.FloatTensor(b_s_)
-                            for i in range(N_LEADER+M_FOLLOWER):
+                            for i in range(N_LEADER+N_FOLLOWER):
                                 new_action, log_prob_ = actors[i].evaluate(b_s_[:, state_number*i:state_number*(i+1)])
-                                target_q1, target_q2 = critics[i].target_critic_v(b_s_, new_action)
-                                target_q = b_r[:, i:(i+1)] + GAMMA * (torch.min(target_q1, target_q2) - entroys[i].alpha * log_prob_.sum(dim=-1, keepdim=True))
-                                current_q1, current_q2 = critics[i].get_v(b_s, b_a[:, action_number*i:action_number*(i+1)])
-                                critics[i].learn(current_q1, current_q2, target_q.detach())
+                                target_q1, target_q2 = critics[i].get_target_q_value(b_s_, new_action)
+                                target_q = b_r[:, i:(i+1)] + GAMMA * (torch.min(target_q1, target_q2) - entropies[i].alpha * log_prob_.sum(dim=-1, keepdim=True))
+                                current_q1, current_q2 = critics[i].get_q_value(b_s, b_a[:, action_number*i:action_number*(i+1)])
+                                critics[i].update(current_q1, current_q2, target_q.detach())
                                 a, log_prob = actors[i].evaluate(b_s[:, state_number*i:state_number*(i+1)])
-                                q1, q2 = critics[i].get_v(b_s, a)
+                                q1, q2 = critics[i].get_q_value(b_s, a)
                                 q = torch.min(q1, q2)
-                                actor_loss = (entroys[i].alpha * log_prob.sum(dim=-1, keepdim=True) - q).mean()
-                                alpha_loss = -(entroys[i].log_alpha.exp() * (
-                                                log_prob.sum(dim=-1, keepdim=True) + entroys[i].target_entropy).detach()).mean()
-                                actors[i].learn(actor_loss)
-                                entroys[i].learn(alpha_loss)
-                                entroys[i].alpha = entroys[i].log_alpha.exp()
+                                actor_loss = (entropies[i].alpha * log_prob.sum(dim=-1, keepdim=True) - q).mean()
+                                alpha_loss = -(entropies[i].log_alpha.exp() * (
+                                                log_prob.sum(dim=-1, keepdim=True) + entropies[i].target_entropy).detach()).mean()
+                                actors[i].update(actor_loss)
+                                entropies[i].update(alpha_loss)
                                 # 软更新
                                 critics[i].soft_update()
                         observation = observation_
@@ -324,13 +188,30 @@ def run(env):
             env.close()
     else:
         print('SAC测试中...')
-        aa = Actor()
+        # Leader Actor
+        aa = Actor(
+            state_dim=state_number,
+            action_dim=action_number,
+            max_action=max_action,
+            min_action=min_action,
+            hidden_dim=HIDDEN_DIM,
+            policy_lr=policy_lr
+        )
         checkpoint_aa = torch.load(get_model_path('Path_SAC_actor_L1.pth'))
         aa.action_net.load_state_dict(checkpoint_aa['net'])
-        bb = Actor()
+        
+        # Follower Actor
+        bb = Actor(
+            state_dim=state_number,
+            action_dim=action_number,
+            max_action=max_action,
+            min_action=min_action,
+            hidden_dim=HIDDEN_DIM,
+            policy_lr=policy_lr
+        )
         checkpoint_bb = torch.load(get_model_path('Path_SAC_actor_F1.pth'))
         bb.action_net.load_state_dict(checkpoint_bb['net'])
-        action = np.zeros((N_LEADER+M_FOLLOWER, action_number))
+        action = np.zeros((N_LEADER+N_FOLLOWER, action_number))
         win_times = 0
         average_FKR=0
         average_timestep=0
@@ -346,7 +227,7 @@ def run(env):
             for timestep in range(EP_LEN):
                 for i in range(N_LEADER):
                     action[i] = aa.choose_action(state[i])
-                for i in range(M_FOLLOWER):
+                for i in range(N_FOLLOWER):
                     action[i+1] = bb.choose_action(state[i+1])
                 new_state, reward,done,win,team_counter,dis = env.step(action)  # 执行动作
                 if win:

@@ -74,7 +74,7 @@ conda activate UAV_PATH_PLANNING
 Switch = 0  # 0为训练模式
 RENDER = False  # 训练时建议关闭渲染
 N_LEADER = 1  # Leader数量
-M_FOLLOWER = 1  # Follower数量
+N_FOLLOWER = 1  # Follower数量
 ```
 
 运行训练：
@@ -173,7 +173,7 @@ UAV_PATH_PLANNING/
 | 参数名 | 默认值 | 说明 |
 |--------|--------|------|
 | `N_LEADER` | 1 | Leader数量 |
-| `M_FOLLOWER` | 1 | Follower数量 |
+| `N_FOLLOWER` | 1 | Follower数量 |
 | `state_number` | 7 | 状态维度 |
 | `action_number` | 2 | 动作维度 |
 
@@ -359,7 +359,7 @@ actor = Actor(
 
 # 创建 Critic（所有参数必须显式传入）
 critic = Critic(
-    state_dim=14,  # state_dim * (N_LEADER + M_FOLLOWER)
+    state_dim=14,  # state_dim * (N_LEADER + N_FOLLOWER)
     action_dim=2,
     hidden_dim=256,
     value_lr=3e-3,
@@ -517,7 +517,7 @@ print(DATA_DIR)      # saved_models/data/
 
 ### 常见问题
 
-1. **M_FOLLOWER必须为1的错误**
+1. **N_FOLLOWER必须为1的错误**
    - 当前版本仅支持1个Follower
    - 需要修改 `path_env.py` 中的相关代码以支持多个Follower
 
@@ -535,6 +535,9 @@ print(DATA_DIR)      # saved_models/data/
 
 ### 最近更新 (2025-10-28)
 
+✅ **命名风格统一**：M_FOLLOWER → N_FOLLOWER，与 N_LEADER 保持一致  
+✅ **重构 main_SAC.py**：使用 algorithm.masac 模块，删除 160 行重复代码  
+✅ **代码量优化**：main_SAC.py 从 383 行减少到 263 行（减少 31.3%）  
 ✅ **参数显式化设计**：移除所有默认参数值，强制显式传参便于调试  
 ✅ **MASAC 模块命名规范化**：所有变量、方法名清晰明了  
 ✅ **MASAC 模块化封装**：算法组件独立为可复用模块  
@@ -546,6 +549,7 @@ print(DATA_DIR)      # saved_models/data/
 ✅ 自动创建 `saved_models/` 目录保存模型  
 ✅ 参数化配置，无全局变量依赖  
 ✅ 完整的文档字符串和注释  
+✅ 消除代码重复，遵循 DRY 原则  
 ✅ 支持项目在任何设备直接运行  
 ✅ 代码更加规范，易于论文发表和分享
 
