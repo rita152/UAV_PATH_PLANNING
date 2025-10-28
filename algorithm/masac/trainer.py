@@ -374,8 +374,12 @@ class Trainer:
         all_ep_F_max = all_ep_F_mean + all_ep_F_std * 0.95
         all_ep_F_min = all_ep_F_mean - all_ep_F_std * 0.95
         
+        # 保存路径
+        from utils import ensure_dir
+        plot_dir = ensure_dir('saved_models/plots')
+        
         # 绘制总奖励曲线
-        plt.figure(1)
+        plt.figure(1, figsize=(8, 4), dpi=150)
         plt.margins(x=0)
         plt.plot(np.arange(len(all_ep_r_mean)), all_ep_r_mean, 
                 label='MASAC', color='#e75840')
@@ -383,6 +387,12 @@ class Trainer:
                          alpha=0.6, facecolor='#e75840')
         plt.xlabel('Episode')
         plt.ylabel('Total reward')
+        plt.title('Total Reward Curve')
+        plt.legend()
+        plt.grid(True, alpha=0.3)
+        plt.tight_layout()
+        plt.savefig(f'{plot_dir}/total_reward.png')
+        print(f"✅ 总奖励曲线已保存: {plot_dir}/total_reward.png")
         
         # 绘制 Leader 奖励曲线
         plt.figure(2, figsize=(8, 4), dpi=150)
@@ -393,6 +403,12 @@ class Trainer:
                          alpha=0.6, facecolor='#e75840')
         plt.xlabel('Episode')
         plt.ylabel('Leader reward')
+        plt.title('Leader Reward Curve')
+        plt.legend()
+        plt.grid(True, alpha=0.3)
+        plt.tight_layout()
+        plt.savefig(f'{plot_dir}/leader_reward.png')
+        print(f"✅ Leader奖励曲线已保存: {plot_dir}/leader_reward.png")
         
         # 绘制 Follower 奖励曲线
         plt.figure(3, figsize=(8, 4), dpi=150)
@@ -403,8 +419,12 @@ class Trainer:
                          alpha=0.6, facecolor='#e75840')
         plt.xlabel('Episode')
         plt.ylabel('Follower reward')
+        plt.title('Follower Reward Curve')
         plt.legend()
-        plt.show()
+        plt.grid(True, alpha=0.3)
+        plt.tight_layout()
+        plt.savefig(f'{plot_dir}/follower_reward.png')
+        print(f"✅ Follower奖励曲线已保存: {plot_dir}/follower_reward.png")
     
     def train(self, ep_max=500, ep_len=1000, train_num=1, render=False):
         """

@@ -98,10 +98,15 @@ def main():
     print("\n" + "="*60)
     print("训练完成！")
     print("="*60)
-    print(f"训练数据: saved_models/data/{params['data_save_name']}")
-    print(f"Leader模型: saved_models/leader.pth (包含{params['n_leader']}个Leader)")
+    print("保存的文件：")
+    print(f"  训练数据: saved_models/data/{params['data_save_name']}")
+    print(f"  Leader模型: saved_models/leader.pth (包含{params['n_leader']}个Leader)")
     if params['n_follower'] > 0:
-        print(f"Follower模型: saved_models/follower.pth (包含{params['n_follower']}个Follower)")
+        print(f"  Follower模型: saved_models/follower.pth (包含{params['n_follower']}个Follower)")
+    print(f"  奖励曲线:")
+    print(f"    - saved_models/plots/total_reward.png")
+    print(f"    - saved_models/plots/leader_reward.png")
+    print(f"    - saved_models/plots/follower_reward.png")
     print("="*60)
 
 

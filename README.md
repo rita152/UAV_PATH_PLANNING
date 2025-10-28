@@ -311,11 +311,14 @@ SAC是一种基于最大熵的强化学习算法，具有以下特点：
 
 训练完成后，系统会自动保存：
 
-- 神经网络模型：`leader.pth`（Leader）、`follower.pth`（Follower）
-- 训练数据：包含奖励曲线的pickle文件
-- 可视化图表：Total reward、Leader reward、Follower reward曲线
+- **神经网络模型**：`leader.pth`（Leader）、`follower.pth`（Follower）
+- **训练数据**：`data/MASAC_new1.pkl`（奖励统计数据）
+- **可视化图表**：自动保存到 `plots/` 目录
+  - `plots/total_reward.png` - 总奖励曲线
+  - `plots/leader_reward.png` - Leader奖励曲线
+  - `plots/follower_reward.png` - Follower奖励曲线
 
-**注意**：所有Follower共享相同的策略网络权重（`follower.pth`）
+**注意**：每个Follower有独立的权重，但所有权重打包在一个 `follower.pth` 文件中
 
 ### 评估指标
 
@@ -419,16 +422,25 @@ AI 将从以下 **6 个维度**进行深度分析：
 
 ## 📂 模型保存
 
-训练过程中，模型会自动保存到 `saved_models/` 目录：
+训练完成后，自动保存到 `saved_models/` 目录：
+
+### 模型文件
 - `leader.pth` - Leader 模型（包含所有Leader的权重）
 - `follower.pth` - Follower 模型（包含所有Follower的权重）
-- `MASAC_new1.pkl` - 训练数据
+
+### 训练数据
+- `data/MASAC_new1.pkl` - 训练统计数据
+
+### 奖励曲线图
+- `plots/total_reward.png` - 总奖励曲线
+- `plots/leader_reward.png` - Leader奖励曲线
+- `plots/follower_reward.png` - Follower奖励曲线
 
 **模型文件结构**：
 - `leader.pth` 是一个字典，包含所有Leader的独立权重（leader_0, leader_1, ...）
 - `follower.pth` 是一个字典，包含所有Follower的独立权重（follower_0, follower_1, ...）
 - 每个智能体训练时有独立的权重，但保存在同一个文件中便于管理
-- 无论有多少Follower，只需要2个文件：leader.pth 和 follower.pth
+- 无论有多少Follower，只需要2个模型文件：leader.pth 和 follower.pth
 
 **建议**：将 `saved_models/` 目录添加到 `.gitignore` 以避免提交大文件。
 
