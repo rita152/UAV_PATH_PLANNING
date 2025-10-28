@@ -1,0 +1,43 @@
+📝 日志文件: /home/zhangpeng/UAV_PATH_PLANNING/runs/exp_baseline_20251029_014643/training.log
+💡 训练输出将实时保存到日志文件
+
+✅ 训练器初始化成功:
+  - 设备: cuda
+  - PER Alpha: 0.6
+  - PER Beta: 0.4
+  - Batch Size: 128
+  - 输出目录: /home/zhangpeng/UAV_PATH_PLANNING/runs/exp_baseline_20251029_014643
+
+✅ 智能体初始化成功:
+  - Actors: 2
+  - Critics: 2
+  - Entropies: 2
+📊 优先级经验回放（PER）配置:
+  - 容量: 20000
+  - Alpha: 0.6 (优先级指数)
+  - Beta: 0.4 → 1.0 (重要性采样权重)
+  - 内存优化: float32 (节省50%内存)
+
+✅ 经验回放初始化成功:
+  - 容量: 20000
+  - Alpha: 0.6
+  - Beta: 0.4
+
+✅ 经验采集成功（无 OU 噪声）:
+  - Action 形状: (2, 2)
+  - Action 范围: [-0.3473, 1.0000]
+
+✅ 训练器初始化测试通过！
+
+============================================================
+🎉 测试通过！
+============================================================
+
+trainer.py 修复总结:
+  ✅ 删除 OU 噪声相关代码
+  ✅ _collect_experience() 不再需要 ou_noise 参数
+  ✅ _update_agents() 返回训练统计信息
+  ✅ _save_models() 保存完整检查点
+  ✅ 训练循环输出 loss、alpha、TD-error 等统计
+
+

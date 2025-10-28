@@ -364,6 +364,9 @@ class Trainer:
             critics: Critic列表
             entropies: Entropy列表
             memory: 优先级经验回放缓冲区
+            
+        Returns:
+            stats: 训练统计字典（包含各种loss和alpha值）
         """
         # 从经验池采样（优先级采样 + 重要性采样权重）
         b_M, weights, indices = memory.sample(self.batch_size)
@@ -383,8 +386,12 @@ class Trainer:
         b_r = torch.FloatTensor(b_r).to(self.device)
         b_s_ = torch.FloatTensor(b_s_).to(self.device)
         
-        # 存储TD-error用于更新优先级
+        # 存储TD-error和损失值用于更新优先级和监控
         td_errors = []
+        actor_losses = []
+        critic_losses = []
+        alpha_losses = []
+        alphas = []
         
         # 更新每个智能体
         for i in range(self.n_agents):
@@ -416,6 +423,7 @@ class Trainer:
             critic_loss.backward()
             torch.nn.utils.clip_grad_norm_(critics[i].critic_net.parameters(), max_norm=1.0)
             critics[i].optimizer.step()
+            critic_losses.append(critic_loss.item())
             
             # 更新 Actor
             a, log_prob = actors[i].evaluate(
@@ -424,13 +432,16 @@ class Trainer:
             q1, q2 = critics[i].get_q_value(b_s, a)
             q = torch.min(q1, q2)
             actor_loss = (entropies[i].alpha * log_prob - q).mean()  # log_prob 已经求和过了
-            actors[i].update(actor_loss)
+            actor_loss_value = actors[i].update(actor_loss)
+            actor_losses.append(actor_loss_value)
             
             # 更新 Entropy
             alpha_loss = -(entropies[i].log_alpha.exp() * (
                 log_prob + entropies[i].target_entropy  # log_prob 已经求和过了
             ).detach()).mean()
-            entropies[i].update(alpha_loss)
+            alpha_loss_value = entropies[i].update(alpha_loss)
+            alpha_losses.append(alpha_loss_value)
+            alphas.append(entropies[i].alpha.item())
             
             # 软更新目标网络
             critics[i].soft_update()
@@ -438,43 +449,90 @@ class Trainer:
         # 更新优先级（使用第一个智能体的TD-error）
         mean_td_error = td_errors[0].cpu().detach().numpy()
         memory.update_priorities(indices, mean_td_error)
+        
+        # 返回统计信息
+        stats = {
+            'actor_loss': np.mean(actor_losses),
+            'critic_loss': np.mean(critic_losses),
+            'alpha_loss': np.mean(alpha_losses),
+            'alpha': np.mean(alphas),
+            'td_error': np.mean(mean_td_error),
+            'beta': memory.beta
+        }
+        
+        return stats
     
-    def _save_models(self, actors, episode):
+    def _save_models(self, actors, critics, entropies, memory, episode):
         """
-        保存模型参数（自动处理GPU/CPU）
-        只保存两个文件：leader.pth 和 follower.pth
-        follower.pth 包含所有Follower的独立权重
+        保存完整的训练检查点（包含所有组件）
+        
+        保存内容：
+        - Actor 网络和优化器
+        - Critic 网络和优化器（包括目标网络）
+        - Entropy 参数和优化器
+        - 经验回放缓冲区统计
+        - Episode 信息
         
         Args:
             actors: Actor列表
+            critics: Critic列表
+            entropies: Entropy列表
+            memory: 经验回放缓冲区
             episode: 当前轮数
         """
         if episode % self.save_interval == 0 and episode > 200:
-            # 保存 Leader 模型（所有Leader的权重）
+            # 保存 Leader 模型（包含完整训练状态）
             leader_save_data = {}
             for i in range(self.n_leader):
                 leader_save_data[f'leader_{i}'] = {
-                    'net': actors[i].action_net.cpu().state_dict(),
-                    'opt': actors[i].optimizer.state_dict()
+                    # Actor
+                    'actor_net': actors[i].action_net.cpu().state_dict(),
+                    'actor_opt': actors[i].optimizer.state_dict(),
+                    # Critic
+                    'critic_net': critics[i].critic_net.cpu().state_dict(),
+                    'critic_opt': critics[i].optimizer.state_dict(),
+                    'target_critic_net': critics[i].target_critic_net.cpu().state_dict(),
+                    # Entropy
+                    'log_alpha': entropies[i].log_alpha.cpu().detach(),
+                    'alpha_opt': entropies[i].optimizer.state_dict(),
                 }
+            leader_save_data['episode'] = episode
+            leader_save_data['memory_stats'] = memory.get_stats()
             torch.save(leader_save_data, os.path.join(self.output_dir, 'leader.pth'))
             
-            # 保存 Follower 模型（所有Follower的权重打包到一个文件）
+            # 保存 Follower 模型（包含完整训练状态）
             if self.n_follower > 0:
                 follower_save_data = {}
                 for j in range(self.n_follower):
                     follower_idx = self.n_leader + j
                     follower_save_data[f'follower_{j}'] = {
-                        'net': actors[follower_idx].action_net.cpu().state_dict(),
-                        'opt': actors[follower_idx].optimizer.state_dict()
+                        # Actor
+                        'actor_net': actors[follower_idx].action_net.cpu().state_dict(),
+                        'actor_opt': actors[follower_idx].optimizer.state_dict(),
+                        # Critic
+                        'critic_net': critics[follower_idx].critic_net.cpu().state_dict(),
+                        'critic_opt': critics[follower_idx].optimizer.state_dict(),
+                        'target_critic_net': critics[follower_idx].target_critic_net.cpu().state_dict(),
+                        # Entropy
+                        'log_alpha': entropies[follower_idx].log_alpha.cpu().detach(),
+                        'alpha_opt': entropies[follower_idx].optimizer.state_dict(),
                     }
+                follower_save_data['episode'] = episode
                 torch.save(follower_save_data, os.path.join(self.output_dir, 'follower.pth'))
             
             # 保存后移回GPU
             for i in range(self.n_leader):
                 actors[i].action_net.to(self.device)
+                critics[i].critic_net.to(self.device)
+                critics[i].target_critic_net.to(self.device)
+                entropies[i].log_alpha = entropies[i].log_alpha.to(self.device)
+            
             for j in range(self.n_follower):
-                actors[self.n_leader + j].action_net.to(self.device)
+                idx = self.n_leader + j
+                actors[idx].action_net.to(self.device)
+                critics[idx].critic_net.to(self.device)
+                critics[idx].target_critic_net.to(self.device)
+                entropies[idx].log_alpha = entropies[idx].log_alpha.to(self.device)
     
     def _save_training_data(self, all_ep_r, all_ep_r0, all_ep_r1):
         """
@@ -647,6 +705,15 @@ class Trainer:
                 reward_leaders = [0.0] * self.n_leader
                 reward_followers = [0.0] * self.n_follower
                 
+                # 训练统计
+                episode_stats = {
+                    'actor_loss': [],
+                    'critic_loss': [],
+                    'alpha': [],
+                    'td_error': [],
+                    'beta': []
+                }
+                
                 for timestep in range(ep_len):
                     # 采集经验（SAC 随机策略，无需额外噪声）
                     action = self._collect_experience(actors, observation)
@@ -665,7 +732,10 @@ class Trainer:
                     
                     # 学习更新（只要有足够样本就开始训练，不需要等待缓冲区满）
                     if memory.is_ready(self.batch_size):
-                        self._update_agents(actors, critics, entropies, memory)
+                        stats = self._update_agents(actors, critics, entropies, memory)
+                        # 记录统计信息
+                        for key in ['actor_loss', 'critic_loss', 'alpha', 'td_error', 'beta']:
+                            episode_stats[key].append(stats[key])
                     
                     # 更新状态
                     observation = observation_
@@ -715,14 +785,29 @@ class Trainer:
                 
                 print(" | ".join(output_parts))
                 
+                # 输出训练统计信息（每10个episode输出一次）
+                if episode % 10 == 0 and len(episode_stats['actor_loss']) > 0:
+                    avg_actor_loss = np.mean(episode_stats['actor_loss'])
+                    avg_critic_loss = np.mean(episode_stats['critic_loss'])
+                    avg_alpha = np.mean(episode_stats['alpha'])
+                    avg_td_error = np.mean(episode_stats['td_error'])
+                    current_beta = episode_stats['beta'][-1] if episode_stats['beta'] else 0
+                    
+                    print(f"  📊 统计 [Ep {episode}]: "
+                          f"Actor Loss={avg_actor_loss:.4f}, "
+                          f"Critic Loss={avg_critic_loss:.4f}, "
+                          f"Alpha={avg_alpha:.4f}, "
+                          f"TD-error={avg_td_error:.4f}, "
+                          f"Beta={current_beta:.4f}")
+                
                 # 记录统计（保持向后兼容）
                 all_ep_r[k].append(reward_total)
                 all_ep_r0[k].append(reward_leaders[0])
                 if self.n_follower > 0:
                     all_ep_r1[k].append(reward_followers[0])
                 
-                # 保存模型
-                self._save_models(actors, episode)
+                # 保存模型（包含完整检查点）
+                self._save_models(actors, critics, entropies, memory, episode)
         
         # 保存训练数据
         data = self._save_training_data(all_ep_r, all_ep_r0, all_ep_r1)
