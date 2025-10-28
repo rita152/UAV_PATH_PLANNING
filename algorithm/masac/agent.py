@@ -21,8 +21,19 @@ class Actor:
         
         self.optimizer = torch.optim.Adam(self.action_net.parameters(), lr=policy_lr)
 
+    @torch.no_grad()
     def choose_action(self, state):
-        """选择动作（用于环境交互）- 输入CPU numpy，输出CPU numpy"""
+        """
+        选择动作（用于训练时的环境交互）- 输入CPU numpy，输出CPU numpy
+        
+        使用随机策略进行探索
+        
+        Args:
+            state: 输入状态 (CPU numpy)
+            
+        Returns:
+            action: 采样的动作 (CPU numpy)
+        """
         # CPU numpy → GPU tensor
         state_tensor = torch.FloatTensor(state).to(self.device)
         mean, std = self.action_net(state_tensor)
@@ -30,7 +41,27 @@ class Actor:
         action = distribution.sample()
         action = torch.clamp(action, self.min_action, self.max_action)
         # GPU tensor → CPU numpy
-        return action.cpu().detach().numpy()
+        return action.cpu().numpy()
+    
+    @torch.no_grad()
+    def choose_action_deterministic(self, state):
+        """
+        确定性动作选择（用于测试/评估）- 输入CPU numpy，输出CPU numpy
+        
+        直接使用均值，不进行随机采样，获得稳定的测试结果
+        
+        Args:
+            state: 输入状态 (CPU numpy)
+            
+        Returns:
+            action: 确定性动作 (CPU numpy)
+        """
+        # CPU numpy → GPU tensor
+        state_tensor = torch.FloatTensor(state).to(self.device)
+        mean, _ = self.action_net(state_tensor)  # 忽略 std
+        action = torch.clamp(mean, self.min_action, self.max_action)
+        # GPU tensor → CPU numpy
+        return action.cpu().numpy()
     
     def evaluate(self, state):
         """
@@ -66,10 +97,21 @@ class Actor:
         return action, log_prob
 
     def update(self, loss):
-        """更新网络参数"""
+        """
+        更新Actor网络参数
+        
+        Args:
+            loss: Actor损失
+        """
         self.optimizer.zero_grad()
         loss.backward()
+        
+        # 梯度裁剪，防止梯度爆炸
+        torch.nn.utils.clip_grad_norm_(self.action_net.parameters(), max_norm=1.0)
+        
         self.optimizer.step()
+        
+        return loss.item()  # 返回loss值用于日志记录
 
 class Entropy:
     """
@@ -86,11 +128,18 @@ class Entropy:
         self.optimizer = torch.optim.Adam([self.log_alpha], lr=lr)
 
     def update(self, loss):
-        """更新熵系数"""
+        """
+        更新熵系数
+        
+        Args:
+            loss: 熵损失
+        """
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
         self.alpha = self.log_alpha.exp()
+        
+        return loss.item()  # 返回loss值用于日志记录
 
 class Critic:
     """
@@ -117,16 +166,48 @@ class Critic:
             target_param.data.copy_(target_param.data * (1.0 - self.tau) + param.data * self.tau)
 
     def get_q_value(self, state, action):
-        """获取Q值"""
+        """
+        获取当前Q值
+        
+        Args:
+            state: 状态
+            action: 动作
+            
+        Returns:
+            q1, q2: 两个Q值
+        """
         return self.critic_net(state, action)
 
+    @torch.no_grad()
     def get_target_q_value(self, state, action):
-        """获取目标Q值"""
+        """
+        获取目标Q值（无梯度计算）
+        
+        Args:
+            state: 状态
+            action: 动作
+            
+        Returns:
+            q1, q2: 两个目标Q值
+        """
         return self.target_critic_net(state, action)
 
     def update(self, q1_current, q2_current, q_target):
-        """更新Critic网络"""
+        """
+        更新Critic网络
+        
+        Args:
+            q1_current: 当前Q1值
+            q2_current: 当前Q2值
+            q_target: 目标Q值
+        """
         loss = self.loss_fn(q1_current, q_target) + self.loss_fn(q2_current, q_target)
         self.optimizer.zero_grad()
         loss.backward()
+        
+        # 梯度裁剪，防止梯度爆炸
+        torch.nn.utils.clip_grad_norm_(self.critic_net.parameters(), max_norm=1.0)
+        
         self.optimizer.step()
+        
+        return loss.item()  # 返回loss值用于日志记录

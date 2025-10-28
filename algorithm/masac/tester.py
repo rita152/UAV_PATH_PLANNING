@@ -142,7 +142,7 @@ class Tester:
     
     def _select_actions(self, actors, state):
         """
-        选择动作（使用训练好的策略，无探索噪声）
+        选择动作（使用确定性策略进行测试）
         每个智能体使用自己独立的权重
         
         Args:
@@ -154,9 +154,9 @@ class Tester:
         """
         action = np.zeros((self.n_agents, self.action_dim))
         
-        # 每个智能体使用自己的策略网络选择动作
+        # 每个智能体使用确定性策略（使用均值，不采样）
         for i in range(self.n_agents):
-            action[i] = actors[i].choose_action(state[i])
+            action[i] = actors[i].choose_action_deterministic(state[i])
         
         return action
     
