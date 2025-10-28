@@ -66,7 +66,20 @@ conda activate UAV_PATH_PLANNING
 
 ## 🚀 快速开始
 
-### 方式1：使用配置文件（推荐）⭐
+### 方式0：极简训练（最快上手）🚀
+
+**一键训练**：
+```bash
+# 1. 激活环境
+conda activate UAV_PATH_PLANNING
+
+# 2. 直接运行（使用默认配置）
+python train.py
+```
+
+**说明**：根目录的 `train.py` 展示了最简洁的API使用方式，仅需2行代码即可开始训练！
+
+### 方式1：命令行训练（推荐）⭐
 
 **训练模式**：
 
@@ -74,7 +87,7 @@ conda activate UAV_PATH_PLANNING
 # 1. 激活环境（必须）
 conda activate UAV_PATH_PLANNING
 
-# 2. 使用默认配置训练（最简单）
+# 2. 使用默认配置训练
 python scripts/baseline/train.py
 
 # 3. 使用自定义配置
@@ -137,6 +150,7 @@ network:
 UAV_PATH_PLANNING/
 ├── README.md                 # 项目文档
 ├── requirements.txt          # 项目依赖
+├── train.py                 # 🚀 极简训练脚本（展示简化API）
 ├── .gitignore               # Git忽略规则
 ├── .cursor/                 # Cursor IDE配置
 │   ├── rules/              # 项目开发规则
@@ -192,9 +206,21 @@ UAV_PATH_PLANNING/
 
 ## 📖 API 使用示例
 
-### 简化的Trainer API
+### 快速上手示例
 
-Trainer类现在采用**配置优先**的设计，使用更简洁：
+**最简单的训练方式**（参考根目录 `train.py`）：
+
+```python
+from algorithm.masac import Trainer
+
+# 仅需2行代码开始训练！
+trainer = Trainer(config="configs/masac/default.yaml")
+trainer.train()
+```
+
+### 完整的Trainer API
+
+Trainer类现在采用**配置优先**的设计，支持多种使用方式：
 
 ```python
 from algorithm.masac import Trainer
@@ -843,11 +869,12 @@ print(PROJECT_ROOT)  # 项目根目录
 ✅ **配置化初始化**：`Trainer(config="config.yaml")` 一行代码创建训练器  
 ✅ **自动环境创建**：Trainer内部自动创建和配置环境  
 ✅ **参数覆盖支持**：`Trainer(config="...", ep_max=1000, device='cuda:1')`  
-✅ **全面命令行支持**：YAML中的**所有25个参数**都支持命令行覆盖  
+✅ **全面命令行支持**：YAML中的**所有23个参数**都支持命令行覆盖  
 ✅ **智能参数查找**：自动在配置的各section中查找并覆盖参数  
 ✅ **更简洁的API**：`train()`方法无需传递参数  
 ✅ **代码行数减少**：train.py 从130行简化到122行  
 ✅ **配置文件自动保存**：训练时自动保存配置副本到输出目录  
+✅ **废弃saved_models**：统一使用`runs/`目录，不再创建`saved_models/`  
 
 #### 📝 训练日志自动保存
 ✅ **实时日志记录**：训练过程中的所有输出自动保存到.log文件  

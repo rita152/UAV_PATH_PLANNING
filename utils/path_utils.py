@@ -205,9 +205,12 @@ def list_models(pattern: str = '*.pth', subdir: str = '') -> list:
 
 # 常用路径快捷方式
 PROJECT_ROOT = get_project_root()
-SAVE_DIR = ensure_dir('saved_models')
-LOG_DIR = ensure_dir(os.path.join('saved_models', 'logs'))
-DATA_DIR = ensure_dir(os.path.join('saved_models', 'data'))
+
+# 注意：以下目录已废弃，现在使用 runs/ 目录
+# 保留这些函数定义是为了向后兼容，但不再自动创建目录
+# SAVE_DIR = ensure_dir('saved_models')  # 已废弃 ❌
+# LOG_DIR = ensure_dir(os.path.join('saved_models', 'logs'))  # 已废弃 ❌
+# DATA_DIR = ensure_dir(os.path.join('saved_models', 'data'))  # 已废弃 ❌
 
 
 if __name__ == '__main__':
@@ -217,19 +220,16 @@ if __name__ == '__main__':
     print("=" * 50)
     
     print(f"\n项目根目录: {get_project_root()}")
-    print(f"保存目录: {SAVE_DIR}")
-    print(f"日志目录: {LOG_DIR}")
-    print(f"数据目录: {DATA_DIR}")
     
     print("\n相对路径转换测试:")
     test_path = get_abs_path('config/settings.json')
     print(f"  config/settings.json -> {test_path}")
     
-    print("\n模型路径测试:")
+    print("\n模型路径测试 (旧版，已废弃):")
     model_path = get_model_path('test_model.pth')
     print(f"  test_model.pth -> {model_path}")
     
-    print("\n数据路径测试:")
+    print("\n数据路径测试 (旧版，已废弃):")
     data_path = get_data_path('test_data.pkl')
     print(f"  test_data.pkl -> {data_path}")
     
@@ -237,5 +237,6 @@ if __name__ == '__main__':
     image_dir = get_resource_path('image')
     print(f"  image目录 -> {image_dir}")
     
-    print("\n" + "=" * 50)
+    print("\n注意: saved_models 目录已废弃，现在使用 runs/ 目录")
+    print("=" * 50)
 
