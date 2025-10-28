@@ -116,8 +116,13 @@ class Tester:
                 policy_lr=self.policy_lr,
                 device=str(self.device)
             )
-            # 加载对应Leader的权重
-            actor.action_net.load_state_dict(leader_checkpoint[f'leader_{i}']['net'])
+            # 加载对应Leader的权重（适配新的保存格式）
+            checkpoint_data = leader_checkpoint[f'leader_{i}']
+            # 兼容旧格式（'net'）和新格式（'actor_net'）
+            if 'actor_net' in checkpoint_data:
+                actor.action_net.load_state_dict(checkpoint_data['actor_net'])
+            else:
+                actor.action_net.load_state_dict(checkpoint_data['net'])
             actors.append(actor)
         
         # 加载Follower模型
@@ -134,8 +139,13 @@ class Tester:
                     policy_lr=self.policy_lr,
                     device=str(self.device)
                 )
-                # 加载对应Follower的权重
-                actor.action_net.load_state_dict(follower_checkpoint[f'follower_{j}']['net'])
+                # 加载对应Follower的权重（适配新的保存格式）
+                checkpoint_data = follower_checkpoint[f'follower_{j}']
+                # 兼容旧格式（'net'）和新格式（'actor_net'）
+                if 'actor_net' in checkpoint_data:
+                    actor.action_net.load_state_dict(checkpoint_data['actor_net'])
+                else:
+                    actor.action_net.load_state_dict(checkpoint_data['net'])
                 actors.append(actor)
         
         return actors
@@ -187,6 +197,7 @@ class Tester:
         all_ep_U = []
         all_ep_T = []
         all_ep_F = []
+        all_win = []  # 记录每个episode的胜利情况
         
         # 测试循环
         for j in range(test_episode):
@@ -235,40 +246,94 @@ class Tester:
                 if done:
                     break
             
-            # 更新统计
-            FKR = team_counter / timestep if timestep > 0 else 0
+            # 更新统计（修复：timestep是索引，总步数是timestep+1）
+            total_steps = timestep + 1
+            FKR = team_counter / total_steps if total_steps > 0 else 0
             average_FKR += FKR
-            average_timestep += timestep
+            average_timestep += total_steps
             average_integral_V += integral_V
             average_integral_U += integral_U
             all_ep_V.append(integral_V)
             all_ep_U.append(integral_U)
-            all_ep_T.append(timestep)
+            all_ep_T.append(total_steps)
             all_ep_F.append(FKR)
+            all_win.append(win)  # 记录胜利情况
             
-            print("Score", total_rewards)
+            print(f"Episode {j}: Score={total_rewards:.2f}, Steps={total_steps}, Win={win}")
         
-        # 打印结果
-        print('任务完成率', win_times / test_episode)
-        print('平均最大编队保持率', average_FKR / test_episode)
-        print('平均最短飞行时间', average_timestep / test_episode)
-        print('平均最短飞行路程', average_integral_V / test_episode)
-        print('平均最小能量损耗', average_integral_U / test_episode)
+        # 计算成功和失败案例的统计
+        success_indices = [i for i, w in enumerate(all_win) if w]
+        failure_indices = [i for i, w in enumerate(all_win) if not w]
+        
+        # 成功案例统计
+        success_stats = {}
+        if len(success_indices) > 0:
+            success_stats = {
+                'count': len(success_indices),
+                'avg_timestep': np.mean([all_ep_T[i] for i in success_indices]),
+                'avg_FKR': np.mean([all_ep_F[i] for i in success_indices]),
+                'avg_integral_V': np.mean([all_ep_V[i] for i in success_indices]),
+                'avg_integral_U': np.mean([all_ep_U[i] for i in success_indices]),
+            }
+        
+        # 失败案例统计
+        failure_stats = {}
+        if len(failure_indices) > 0:
+            failure_stats = {
+                'count': len(failure_indices),
+                'avg_timestep': np.mean([all_ep_T[i] for i in failure_indices]),
+                'avg_FKR': np.mean([all_ep_F[i] for i in failure_indices]),
+            }
+        
+        # 打印详细结果
+        print("\n" + "="*60)
+        print("📊 测试结果总结")
+        print("="*60)
+        print(f"总体统计:")
+        print(f"  - 任务完成率: {win_times / test_episode:.2%}")
+        print(f"  - 平均编队保持率: {average_FKR / test_episode:.4f} ± {np.std(all_ep_F):.4f}")
+        print(f"  - 平均飞行时间: {average_timestep / test_episode:.2f} ± {np.std(all_ep_T):.2f}")
+        print(f"  - 平均飞行路程: {average_integral_V / test_episode:.4f} ± {np.std(all_ep_V):.4f}")
+        print(f"  - 平均能量损耗: {average_integral_U / test_episode:.4f} ± {np.std(all_ep_U):.4f}")
+        
+        if success_stats:
+            print(f"\n✅ 成功案例 ({success_stats['count']} 次):")
+            print(f"  - 平均飞行时间: {success_stats['avg_timestep']:.2f}")
+            print(f"  - 平均编队保持率: {success_stats['avg_FKR']:.4f}")
+            print(f"  - 平均飞行路程: {success_stats['avg_integral_V']:.4f}")
+            print(f"  - 平均能量损耗: {success_stats['avg_integral_U']:.4f}")
+        
+        if failure_stats:
+            print(f"\n❌ 失败案例 ({failure_stats['count']} 次):")
+            print(f"  - 平均飞行时间: {failure_stats['avg_timestep']:.2f}")
+            print(f"  - 平均编队保持率: {failure_stats['avg_FKR']:.4f}")
+        
+        print("="*60)
         
         # 关闭环境
         self.env.close()
         
-        # 返回结果
+        # 返回详细结果（添加标准差和成功/失败分析）
         results = {
+            # 总体统计
             'win_rate': win_times / test_episode,
             'average_FKR': average_FKR / test_episode,
+            'std_FKR': np.std(all_ep_F),
             'average_timestep': average_timestep / test_episode,
+            'std_timestep': np.std(all_ep_T),
             'average_integral_V': average_integral_V / test_episode,
+            'std_integral_V': np.std(all_ep_V),
             'average_integral_U': average_integral_U / test_episode,
+            'std_integral_U': np.std(all_ep_U),
+            # 原始数据
             'all_ep_V': all_ep_V,
             'all_ep_U': all_ep_U,
             'all_ep_T': all_ep_T,
             'all_ep_F': all_ep_F,
+            'all_win': all_win,
+            # 成功/失败案例分析
+            'success_stats': success_stats,
+            'failure_stats': failure_stats,
         }
         
         return results

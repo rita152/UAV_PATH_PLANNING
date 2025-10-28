@@ -1,0 +1,71 @@
+environment:
+  n_leader: 1              # Leader 数量
+  n_follower: 1            # Follower 数量
+  render: false            # 是否渲染可视化
+  state_dim: 7             # 状态维度
+  action_dim: 2            # 动作维度（自动从环境获取）
+  
+training:
+  ep_max: 500              # 最大训练轮数
+  ep_len: 1000             # 每轮最大步数
+  train_num: 1             # 训练次数（重复实验次数）
+  gamma: 0.9               # 折扣因子
+  batch_size: 128          # 批次大小
+  memory_capacity: 20000   # 经验池容量
+  
+  # 优先级经验回放配置（默认启用）
+  per_alpha: 0.6           # 优先级指数（0=均匀, 1=完全优先级，推荐0.6）
+  per_beta: 0.4            # IS权重初始值（训练中逐渐增长到1.0）
+  per_beta_increment: 0.001 # beta增长速率
+  
+  # 设备配置
+  device: 'auto'           # 'auto', 'cpu', 'cuda', 'cuda:0', 'cuda:1'
+  
+  # 随机种子配置
+  seed: 42                 # 基础随机种子（训练种子: seed+episode）
+  deterministic: false     # 完全确定性（牺牲10-30%性能）
+  
+  # 数据保存
+  experiment_name: 'baseline'  # 实验名称（用于创建保存目录）
+  save_dir_prefix: 'exp'      # 保存目录前缀
+
+# ============================================
+# 测试配置
+# ============================================
+testing:
+  test_episode: 100        # 测试轮数
+  ep_len: 1000             # 每轮最大步数
+  render: false            # 是否渲染可视化
+  
+  # 模型路径（null 表示使用默认路径）
+  leader_model_path: null
+  follower_model_path: null
+
+# ============================================
+# 网络配置
+# ============================================
+network:
+  hidden_dim: 256          # 隐藏层维度
+  
+  # 学习率
+  q_lr: 3.0e-4             # Q网络学习率
+  value_lr: 3.0e-3         # Value网络学习率
+  policy_lr: 1.0e-3        # Policy网络学习率
+  
+  # 其他参数
+  tau: 1.0e-2              # 软更新系数
+
+# ============================================
+# 环境变量
+# ============================================
+env_vars:
+  KMP_DUPLICATE_LIB_OK: 'TRUE'
+
+# ============================================
+# 输出配置
+# ============================================
+output:
+  verbose: true            # 是否输出详细信息
+  log_interval: 1          # 日志输出间隔（每N轮输出一次）
+  save_interval: 20        # 模型保存间隔（每N轮保存一次）
+
