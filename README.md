@@ -68,13 +68,14 @@ conda activate UAV_PATH_PLANNING
 
 ### 训练模式
 
-修改 `main_SAC.py` 中的参数：
+修改 `scripts/baseline/train.py` 中的参数（可选）：
 
 ```python
-Switch = 0  # 0为训练模式
-RENDER = False  # 训练时建议关闭渲染
 N_LEADER = 1  # Leader数量
 N_FOLLOWER = 1  # Follower数量
+RENDER = False  # 训练时建议关闭渲染
+EP_MAX = 500  # 最大训练轮数
+EP_LEN = 1000  # 每轮最大步数
 ```
 
 运行训练：
@@ -84,17 +85,17 @@ N_FOLLOWER = 1  # Follower数量
 conda activate UAV_PATH_PLANNING
 
 # 2. 运行训练
-python main_SAC.py
+python scripts/baseline/train.py
 ```
 
 ### 测试模式
 
-修改 `main_SAC.py` 中的参数：
+修改 `scripts/baseline/test.py` 中的参数（可选）：
 
 ```python
-Switch = 1  # 1为测试模式
 RENDER = True  # 测试时可开启可视化
 TEST_EPIOSDE = 100  # 测试轮数
+EP_LEN = 1000  # 每轮最大步数
 ```
 
 运行测试：
@@ -104,7 +105,7 @@ TEST_EPIOSDE = 100  # 测试轮数
 conda activate UAV_PATH_PLANNING
 
 # 2. 运行测试
-python main_SAC.py
+python scripts/baseline/test.py
 ```
 
 ## 📁 项目结构
@@ -114,13 +115,16 @@ UAV_PATH_PLANNING/
 ├── README.md                 # 项目文档
 ├── requirements.txt          # 项目依赖
 ├── .gitignore               # Git忽略规则
-├── main_SAC.py              # 主程序入口
 ├── .cursor/                 # Cursor IDE配置
 │   ├── rules/              # 项目开发规则
 │   │   └── project-rules.mdc  # 核心开发规范（自动应用）
 │   └── commands/           # 自定义斜杠命令
 │       ├── init.md         # 初始化命令
 │       └── ultrathink.md   # 深度思考模式命令
+├── scripts/                 # 训练和测试脚本
+│   └── baseline/           # Baseline实验脚本
+│       ├── train.py        # 训练脚本
+│       └── test.py         # 测试脚本
 ├── algorithm/               # 算法实现
 │   ├── __init__.py
 │   └── masac/              # MASAC算法模块
@@ -128,7 +132,9 @@ UAV_PATH_PLANNING/
 │       ├── agent.py        # Actor、Critic、Entropy类
 │       ├── model.py        # ActorNet、CriticNet网络
 │       ├── buffer.py       # Memory经验回放
-│       └── noise.py        # OU噪声生成器
+│       ├── noise.py        # OU噪声生成器
+│       ├── trainer.py      # Trainer训练器类
+│       └── tester.py       # Tester测试器类
 ├── rl_env/                  # 强化学习环境
 │   ├── __init__.py
 │   └── path_env.py         # 路径规划环境实现
@@ -141,10 +147,9 @@ UAV_PATH_PLANNING/
 │   └── source/             # 资源文件
 │       ├── image/          # 图片资源
 │       └── music/          # 音效资源
-├── utils/                   # 工具函数
-│   ├── __init__.py
-│   └── path_utils.py       # 路径管理工具（自动处理跨平台路径）
-└── docs/                    # 文档目录
+└── utils/                   # 工具函数
+    ├── __init__.py
+    └── path_utils.py       # 路径管理工具（自动处理跨平台路径）
 ```
 
 ## ⚙️ 核心参数配置
@@ -337,11 +342,59 @@ from algorithm.masac import (
     Memory,             # 经验回放缓冲区
     ActorNet,           # Actor神经网络
     CriticNet,          # Critic神经网络
-    Ornstein_Uhlenbeck_Noise  # OU噪声
+    Ornstein_Uhlenbeck_Noise,  # OU噪声
+    Trainer,            # 训练器类（封装完整训练流程）
+    Tester              # 测试器类（封装完整测试流程）
 )
 ```
 
 ### 使用示例
+
+#### 方式1：使用 Trainer/Tester 类（推荐）
+
+```python
+from rl_env.path_env import RlGame
+from algorithm.masac import Trainer, Tester
+
+# 创建环境
+env = RlGame(n=1, m=1, render=False).unwrapped
+
+# 训练
+trainer = Trainer(
+    env=env,
+    n_leader=1,
+    n_follower=1,
+    state_dim=7,
+    action_dim=2,
+    max_action=1.0,
+    min_action=-1.0,
+    hidden_dim=256,
+    gamma=0.9,
+    q_lr=3e-4,
+    value_lr=3e-3,
+    policy_lr=1e-3,
+    tau=1e-2,
+    batch_size=128,
+    memory_capacity=20000
+)
+trainer.train(ep_max=500, ep_len=1000, render=False)
+
+# 测试
+tester = Tester(
+    env=env,
+    n_leader=1,
+    n_follower=1,
+    state_dim=7,
+    action_dim=2,
+    max_action=1.0,
+    min_action=-1.0,
+    hidden_dim=256,
+    policy_lr=1e-3
+)
+results = tester.test(ep_len=1000, test_episode=100, render=False)
+```
+
+#### 方式2：使用底层组件（高级用法）
 
 ```python
 import numpy as np
@@ -535,9 +588,20 @@ print(DATA_DIR)      # saved_models/data/
 
 ### 最近更新 (2025-10-28)
 
+#### 重大重构：Trainer/Tester 类封装 🎉
+✅ **提取训练器类**：新增 `algorithm/masac/trainer.py` - Trainer 类（445行）  
+✅ **提取测试器类**：新增 `algorithm/masac/tester.py` - Tester 类（226行）  
+✅ **独立训练脚本**：新增 `scripts/baseline/train.py` - 独立训练入口（125行）  
+✅ **独立测试脚本**：新增 `scripts/baseline/test.py` - 独立测试入口（106行）  
+✅ **职责分离设计**：配置参数（__init__）与运行参数（train/test）完全分离  
+✅ **移除 main_SAC.py**：使用独立脚本替代单文件 Switch 控制模式  
+✅ **代码精简优化**：核心逻辑从 383 行优化为模块化设计  
+✅ **易于批量实验**：可创建多个训练脚本对比不同配置  
+✅ **提升可测试性**：Trainer/Tester 类可独立进行单元测试  
+✅ **模块化程度提升**：从单文件设计升级为完整的类封装设计  
+
+#### 之前的更新
 ✅ **命名风格统一**：M_FOLLOWER → N_FOLLOWER，与 N_LEADER 保持一致  
-✅ **重构 main_SAC.py**：使用 algorithm.masac 模块，删除 160 行重复代码  
-✅ **代码量优化**：main_SAC.py 从 383 行减少到 263 行（减少 31.3%）  
 ✅ **参数显式化设计**：移除所有默认参数值，强制显式传参便于调试  
 ✅ **MASAC 模块命名规范化**：所有变量、方法名清晰明了  
 ✅ **MASAC 模块化封装**：算法组件独立为可复用模块  
