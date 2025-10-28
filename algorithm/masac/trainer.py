@@ -133,8 +133,8 @@ class Trainer:
         # 创建目录名: exp_baseline_20251028_143022
         dir_name = f"{save_dir_prefix}_{experiment_name}_{timestamp}"
         
-        # 完整路径
-        output_dir = os.path.join(get_project_root(), 'saved_models', dir_name)
+        # 完整路径（使用runs作为根目录）
+        output_dir = os.path.join(get_project_root(), 'runs', dir_name)
         
         # 创建目录
         os.makedirs(output_dir, exist_ok=True)
