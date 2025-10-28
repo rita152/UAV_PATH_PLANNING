@@ -6,7 +6,10 @@ import torch
 import numpy as np
 from matplotlib import pyplot as plt
 import pickle as pkl
-from utils import get_model_path, get_data_path, set_global_seed, get_episode_seed, print_seed_info
+import os
+import shutil
+from datetime import datetime
+from utils import get_model_path, get_data_path, set_global_seed, get_episode_seed, print_seed_info, get_project_root, ensure_dir
 from .agent import Actor, Critic, Entropy
 from .buffer import Memory
 from .noise import Ornstein_Uhlenbeck_Noise
@@ -63,7 +66,8 @@ class Trainer:
                  device='auto',
                  seed=42,
                  deterministic=False,
-                 data_save_name='MASAC_new1.pkl'):
+                 experiment_name='baseline',
+                 save_dir_prefix='exp'):
         
         # 环境实例
         self.env = env
@@ -108,8 +112,47 @@ class Trainer:
         self.batch_size = batch_size
         self.memory_capacity = memory_capacity
         
-        # 数据保存路径
-        self.data_path = get_data_path(data_save_name)
+        # 创建独立的输出目录
+        self.output_dir = self._create_output_dir(experiment_name, save_dir_prefix)
+        print(f"📁 输出目录: {self.output_dir}")
+    
+    def _create_output_dir(self, experiment_name, save_dir_prefix):
+        """
+        创建独立的输出目录
+        
+        Args:
+            experiment_name: 实验名称
+            save_dir_prefix: 目录前缀
+            
+        Returns:
+            输出目录的绝对路径
+        """
+        # 生成时间戳
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        
+        # 创建目录名: exp_baseline_20251028_143022
+        dir_name = f"{save_dir_prefix}_{experiment_name}_{timestamp}"
+        
+        # 完整路径
+        output_dir = os.path.join(get_project_root(), 'saved_models', dir_name)
+        
+        # 创建目录
+        os.makedirs(output_dir, exist_ok=True)
+        os.makedirs(os.path.join(output_dir, 'plots'), exist_ok=True)
+        
+        return output_dir
+    
+    def _save_config(self, config_path):
+        """
+        保存配置文件副本到输出目录
+        
+        Args:
+            config_path: 原始配置文件路径
+        """
+        if config_path and os.path.exists(config_path):
+            dest_path = os.path.join(self.output_dir, 'config.yaml')
+            shutil.copy(config_path, dest_path)
+            print(f"✅ 配置文件已保存: {dest_path}")
     
     def _print_device_info(self):
         """打印设备信息"""
@@ -300,7 +343,7 @@ class Trainer:
                     'net': actors[i].action_net.cpu().state_dict(),
                     'opt': actors[i].optimizer.state_dict()
                 }
-            torch.save(leader_save_data, get_model_path('leader.pth'))
+            torch.save(leader_save_data, os.path.join(self.output_dir, 'leader.pth'))
             
             # 保存 Follower 模型（所有Follower的权重打包到一个文件）
             if self.n_follower > 0:
@@ -311,7 +354,7 @@ class Trainer:
                         'net': actors[follower_idx].action_net.cpu().state_dict(),
                         'opt': actors[follower_idx].optimizer.state_dict()
                     }
-                torch.save(follower_save_data, get_model_path('follower.pth'))
+                torch.save(follower_save_data, os.path.join(self.output_dir, 'follower.pth'))
             
             # 保存后移回GPU
             for i in range(self.n_leader):
@@ -347,8 +390,12 @@ class Trainer:
             "all_ep_F_std": all_ep_F_std,
         }
         
-        with open(self.data_path, 'wb') as f:
+        # 保存到输出目录
+        data_path = os.path.join(self.output_dir, 'training_data.pkl')
+        with open(data_path, 'wb') as f:
             pkl.dump(data, f, pkl.HIGHEST_PROTOCOL)
+        
+        print(f"✅ 训练数据已保存: {data_path}")
         
         return data
     
@@ -374,9 +421,8 @@ class Trainer:
         all_ep_F_max = all_ep_F_mean + all_ep_F_std * 0.95
         all_ep_F_min = all_ep_F_mean - all_ep_F_std * 0.95
         
-        # 保存路径
-        from utils import ensure_dir
-        plot_dir = ensure_dir('saved_models/plots')
+        # 保存路径（使用输出目录）
+        plot_dir = os.path.join(self.output_dir, 'plots')
         
         # 绘制总奖励曲线
         plt.figure(1, figsize=(8, 4), dpi=150)
@@ -391,7 +437,7 @@ class Trainer:
         plt.legend()
         plt.grid(True, alpha=0.3)
         plt.tight_layout()
-        plt.savefig(f'{plot_dir}/total_reward.png')
+        plt.savefig(f'{plot_dir}/total_reward.png', dpi=300)
         print(f"✅ 总奖励曲线已保存: {plot_dir}/total_reward.png")
         
         # 绘制 Leader 奖励曲线
@@ -407,7 +453,7 @@ class Trainer:
         plt.legend()
         plt.grid(True, alpha=0.3)
         plt.tight_layout()
-        plt.savefig(f'{plot_dir}/leader_reward.png')
+        plt.savefig(f'{plot_dir}/leader_reward.png', dpi=300)
         print(f"✅ Leader奖励曲线已保存: {plot_dir}/leader_reward.png")
         
         # 绘制 Follower 奖励曲线
@@ -423,7 +469,7 @@ class Trainer:
         plt.legend()
         plt.grid(True, alpha=0.3)
         plt.tight_layout()
-        plt.savefig(f'{plot_dir}/follower_reward.png')
+        plt.savefig(f'{plot_dir}/follower_reward.png', dpi=300)
         print(f"✅ Follower奖励曲线已保存: {plot_dir}/follower_reward.png")
     
     def train(self, ep_max=500, ep_len=1000, train_num=1, render=False):

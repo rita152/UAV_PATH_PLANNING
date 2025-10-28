@@ -21,7 +21,8 @@ training:
   deterministic: false     # 完全确定性（牺牲10-30%性能）
   
   # 数据保存
-  data_save_name: 'MASAC_new1.pkl'  # 训练数据保存文件名
+  experiment_name: 'baseline'  # 实验名称（用于创建保存目录）
+  save_dir_prefix: 'exp'      # 保存目录前缀
 
 # ============================================
 # 测试配置

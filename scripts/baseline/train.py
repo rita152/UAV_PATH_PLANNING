@@ -76,8 +76,19 @@ def main():
         device=params['device'],
         seed=params['seed'],
         deterministic=params['deterministic'],
-        data_save_name=params['data_save_name']
+        experiment_name=params['experiment_name'],
+        save_dir_prefix=params['save_dir_prefix']
     )
+    
+    # 保存配置文件副本
+    if args.config:
+        trainer._save_config(args.config)
+    else:
+        # 默认配置文件路径
+        from pathlib import Path
+        default_config = Path(project_root) / 'configs' / 'masac' / 'default.yaml'
+        if default_config.exists():
+            trainer._save_config(str(default_config))
     
     # 执行训练
     print("\n" + "="*60)
@@ -98,15 +109,17 @@ def main():
     print("\n" + "="*60)
     print("训练完成！")
     print("="*60)
-    print("保存的文件：")
-    print(f"  训练数据: saved_models/data/{params['data_save_name']}")
-    print(f"  Leader模型: saved_models/leader.pth (包含{params['n_leader']}个Leader)")
+    print(f"所有文件已保存到: {trainer.output_dir}")
+    print("\n文件清单：")
+    print(f"  ├── config.yaml          # 本次训练的配置文件")
+    print(f"  ├── leader.pth           # Leader模型 ({params['n_leader']}个)")
     if params['n_follower'] > 0:
-        print(f"  Follower模型: saved_models/follower.pth (包含{params['n_follower']}个Follower)")
-    print(f"  奖励曲线:")
-    print(f"    - saved_models/plots/total_reward.png")
-    print(f"    - saved_models/plots/leader_reward.png")
-    print(f"    - saved_models/plots/follower_reward.png")
+        print(f"  ├── follower.pth         # Follower模型 ({params['n_follower']}个独立权重)")
+    print(f"  ├── training_data.pkl    # 训练统计数据")
+    print(f"  └── plots/")
+    print(f"      ├── total_reward.png")
+    print(f"      ├── leader_reward.png")
+    print(f"      └── follower_reward.png")
     print("="*60)
 
 

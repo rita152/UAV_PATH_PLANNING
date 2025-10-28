@@ -84,7 +84,8 @@ def get_train_params(config: Dict[str, Any]) -> Dict[str, Any]:
     params['device'] = train_config.get('device', 'auto')
     params['seed'] = train_config.get('seed', 42)
     params['deterministic'] = train_config.get('deterministic', False)
-    params['data_save_name'] = train_config.get('data_save_name', 'MASAC_new1.pkl')
+    params['experiment_name'] = train_config.get('experiment_name', 'baseline')
+    params['save_dir_prefix'] = train_config.get('save_dir_prefix', 'exp')
     
     # 网络参数
     net_config = config.get('network', {})
