@@ -44,9 +44,6 @@ def main():
     # 获取测试参数
     params = get_test_params(config)
     
-    # 打印配置信息
-    print_config(config)
-    
     # 创建环境
     env = RlGame(
         n=params['n_leader'],
@@ -78,6 +75,9 @@ def main():
     print("\n" + "="*60)
     print("开始测试 SAC 算法")
     print("="*60)
+    
+    # 打印配置信息
+    print_config(config)
     
     results = tester.test(
         ep_len=params['ep_len'],

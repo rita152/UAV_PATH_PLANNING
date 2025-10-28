@@ -44,9 +44,6 @@ def main():
     # 获取训练参数
     params = get_train_params(config)
     
-    # 打印配置信息
-    print_config(config)
-    
     # 创建环境
     env = RlGame(
         n=params['n_leader'],
@@ -83,6 +80,9 @@ def main():
     print("\n" + "="*60)
     print("开始训练 SAC 算法")
     print("="*60)
+    
+    # 打印配置信息
+    print_config(config)
     
     data = trainer.train(
         ep_max=params['ep_max'],

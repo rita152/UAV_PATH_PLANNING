@@ -130,50 +130,17 @@ def get_test_params(config: Dict[str, Any]) -> Dict[str, Any]:
 
 def print_config(config: Dict[str, Any]) -> None:
     """
-    打印配置信息
+    打印配置信息（简化版：仅显示智能体数量）
     
     Args:
         config: 配置字典
     """
-    print("="*60)
-    print("配置信息")
-    print("="*60)
-    
     # 环境配置
     env_config = config.get('environment', {})
-    print(f"\n【环境配置】")
-    print(f"  Leader 数量:      {env_config.get('n_leader', 1)}")
-    print(f"  Follower 数量:    {env_config.get('n_follower', 1)}")
-    print(f"  渲染:             {env_config.get('render', False)}")
+    n_leader = env_config.get('n_leader', 1)
+    n_follower = env_config.get('n_follower', 1)
     
-    # 训练配置
-    if 'training' in config:
-        train_config = config['training']
-        print(f"\n【训练配置】")
-        print(f"  最大轮数:         {train_config.get('ep_max', 500)}")
-        print(f"  每轮步数:         {train_config.get('ep_len', 1000)}")
-        print(f"  训练次数:         {train_config.get('train_num', 1)}")
-        print(f"  折扣因子:         {train_config.get('gamma', 0.9)}")
-        print(f"  批次大小:         {train_config.get('batch_size', 128)}")
-        print(f"  经验池容量:       {train_config.get('memory_capacity', 20000)}")
-    
-    # 测试配置
-    if 'testing' in config:
-        test_config = config['testing']
-        print(f"\n【测试配置】")
-        print(f"  测试轮数:         {test_config.get('test_episode', 100)}")
-        print(f"  每轮步数:         {test_config.get('ep_len', 1000)}")
-    
-    # 网络配置
-    net_config = config.get('network', {})
-    print(f"\n【网络配置】")
-    print(f"  隐藏层维度:       {net_config.get('hidden_dim', 256)}")
-    print(f"  Q网络学习率:      {net_config.get('q_lr', 3e-4)}")
-    print(f"  Value学习率:      {net_config.get('value_lr', 3e-3)}")
-    print(f"  Policy学习率:     {net_config.get('policy_lr', 1e-3)}")
-    print(f"  软更新系数:       {net_config.get('tau', 1e-2)}")
-    
-    print("="*60)
+    print(f"配置加载成功 | Leader: {n_leader} | Follower: {n_follower}")
 
 
 if __name__ == '__main__':
