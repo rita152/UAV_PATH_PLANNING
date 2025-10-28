@@ -616,7 +616,8 @@ class Trainer:
                 episode_seed = get_episode_seed(self.base_seed, episode, mode='train')
                 set_global_seed(episode_seed, self.deterministic)
                 
-                observation = self.env.reset()
+                # 重置环境（符合 Gymnasium 标准）
+                observation, reset_info = self.env.reset()
                 reward_total = 0
                 
                 # 为每个智能体单独统计奖励
@@ -627,8 +628,13 @@ class Trainer:
                     # 采集经验
                     action = self._collect_experience(actors, observation, episode, ou_noise)
                     
-                    # 环境交互
-                    observation_, reward, done, win, team_counter = self.env.step(action)
+                    # 环境交互（符合 Gymnasium 标准）
+                    observation_, reward, terminated, truncated, info = self.env.step(action)
+                    
+                    # 从 info 中提取额外信息
+                    win = info['win']
+                    team_counter = info['team_counter']
+                    done = terminated or truncated
                     
                     # 存储经验
                     memory.store(observation.flatten(), action.flatten(), 

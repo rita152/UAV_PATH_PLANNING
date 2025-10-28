@@ -1,6 +1,6 @@
 environment:
   n_leader: 1              # Leader 数量
-  n_follower: 2            # Follower 数量
+  n_follower: 1            # Follower 数量
   render: false            # 是否渲染可视化
   state_dim: 7             # 状态维度
   action_dim: 2            # 动作维度（自动从环境获取）

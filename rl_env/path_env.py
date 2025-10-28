@@ -10,6 +10,43 @@ from assignment.components import player
 from assignment import tools
 from assignment.components import info
 from utils import get_resource_path
+
+
+# ============================================
+# 环境常量定义
+# ============================================
+# 状态归一化参数
+STATE_NORM = {
+    'position': 1000.0,      # 地图尺寸归一化因子
+    'speed': 30.0,           # 最大速度归一化因子
+    'angle': 360.0,          # 角度范围（度）
+    'rad_to_deg': 57.3       # 弧度转角度系数 (180/π ≈ 57.3)
+}
+
+# 距离阈值
+DISTANCE_THRESHOLD = {
+    'collision': 20,         # 碰撞距离（与障碍物）
+    'warning': 40,           # 警告距离（接近障碍物）
+    'goal': 40,              # 到达目标距离
+    'formation': 50,         # 编队距离（Leader-Follower）
+    'boundary_margin': 50    # 边界安全边距
+}
+
+# 奖励参数
+REWARD_PARAMS = {
+    'collision_penalty': -500.0,      # 碰撞惩罚
+    'warning_penalty': -2.0,          # 警告惩罚（接近障碍）
+    'boundary_penalty': -1.0,         # 边界惩罚
+    'goal_reward': 1000.0,            # 到达目标奖励
+    'goal_distance_coef': -0.001,     # 目标距离惩罚系数
+    'formation_distance_coef': -0.001,# 编队距离惩罚系数
+    'speed_match_reward': 1.0         # 速度匹配奖励
+}
+
+# 速度匹配阈值
+SPEED_MATCH_THRESHOLD = 1.0
+
+
 class RlGame(gym.Env):
     def __init__(self, n,m,render=False):
         self.leader_num = n
@@ -37,9 +74,19 @@ class RlGame(gym.Env):
             self.mouse_pos=(100,100)
             pygame.time.set_timer(C.CREATE_AGENT_EVENT, C.AGENT_MAKE_TIME)
 
-        low = np.array([-1,-1])
-        high=np.array([1,1])
-        self.action_space=spaces.Box(low=low,high=high,dtype=np.float32)
+        # 定义动作空间：连续动作 [angle_change, speed_change]
+        low = np.array([-1, -1])
+        high = np.array([1, 1])
+        self.action_space = spaces.Box(low=low, high=high, dtype=np.float32)
+        
+        # 定义观测空间：符合 Gymnasium 标准
+        # 每个智能体的状态维度为 7
+        # Leader: [x, y, speed, angle, goal_x, goal_y, obstacle_flag]
+        # Follower: [x, y, speed, angle, leader_x, leader_y, leader_speed]
+        n_agents = self.leader_num + self.follower_num
+        obs_low = np.array([[0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0]] * n_agents, dtype=np.float32)
+        obs_high = np.array([[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]] * n_agents, dtype=np.float32)
+        self.observation_space = spaces.Box(low=obs_low, high=obs_high, dtype=np.float32)
     def start(self):
         # self.game_info=game_info
         self.finished=False
@@ -129,8 +176,73 @@ class RlGame(gym.Env):
     def update_game_info(self):#死亡后重置数据
         self.game_info['epsoide'] += 1
         self.game_info['follower_win'] = self.game_info['epsoide'] - self.game_info['leader_win']
+    
+    def _normalize_position(self, pos):
+        """归一化位置坐标"""
+        return pos / STATE_NORM['position']
+    
+    def _normalize_speed(self, speed):
+        """归一化速度"""
+        return speed / STATE_NORM['speed']
+    
+    def _normalize_angle(self, theta_rad):
+        """归一化角度：弧度 -> 角度 -> [0, 1]"""
+        return (theta_rad * STATE_NORM['rad_to_deg']) / STATE_NORM['angle']
+    
+    def _get_leader_state(self, obstacle_flag=0):
+        """
+        获取Leader的归一化状态
+        
+        Returns:
+            list: [x, y, speed, angle, goal_x, goal_y, obstacle_flag]
+        """
+        return [
+            self._normalize_position(self.leader.posx),
+            self._normalize_position(self.leader.posy),
+            self._normalize_speed(self.leader.speed),
+            self._normalize_angle(self.leader.theta),
+            self._normalize_position(self.goal0.init_x),
+            self._normalize_position(self.goal0.init_y),
+            obstacle_flag
+        ]
+    
+    def _get_follower_state(self, follower):
+        """
+        获取Follower的归一化状态
+        
+        Args:
+            follower: Follower 智能体实例
+            
+        Returns:
+            list: [x, y, speed, angle, leader_x, leader_y, leader_speed]
+        """
+        return [
+            self._normalize_position(follower.posx),
+            self._normalize_position(follower.posy),
+            self._normalize_speed(follower.speed),
+            self._normalize_angle(follower.theta),
+            self._normalize_position(self.leader.posx),
+            self._normalize_position(self.leader.posy),
+            self._normalize_speed(self.leader.speed)
+        ]
 
-    def reset(self):#reset的仅是环境状态，
+    def reset(self, seed=None, options=None):
+        """
+        重置环境状态
+        
+        Args:
+            seed: 随机种子（Gymnasium 标准）
+            options: 额外选项（Gymnasium 标准）
+            
+        Returns:
+            observation: 归一化的观测状态
+            info: 附加信息字典
+        """
+        # 设置随机种子（Gymnasium 标准）
+        if seed is not None:
+            np.random.seed(seed)
+            random.seed(seed)
+        # 重置环境
         if self.Render:
             self.start()
         else:
@@ -138,23 +250,24 @@ class RlGame(gym.Env):
             self.set_follower()
             self.set_goal()
             self.set_obstacle()
+        
         self.team_counter = 0
         self.done = False
-        self.leader_state = np.zeros((self.leader_num+self.follower_num,7))
+        self.leader_state = np.zeros((self.leader_num + self.follower_num, 7))
         self.leader_α = np.zeros((self.leader_num, 1))
         
-        # 动态构建状态数组
+        # 构建初始观测状态（使用归一化辅助函数）
         states = []
         
-        # Leader状态（只有1个leader）
+        # Leader状态（使用 init_x/init_y 作为初始位置）
         state = [
-            self.leader.init_x / 1000,
-            self.leader.init_y / 1000,
-            self.leader.speed / 30,
-            self.leader.theta * 57.3 / 360,
-            self.goal0.init_x / 1000,
-            self.goal0.init_y / 1000,
-            0
+            self._normalize_position(self.leader.init_x),
+            self._normalize_position(self.leader.init_y),
+            self._normalize_speed(self.leader.speed),
+            self._normalize_angle(self.leader.theta),
+            self._normalize_position(self.goal0.init_x),
+            self._normalize_position(self.goal0.init_y),
+            0  # 初始无障碍标志
         ]
         states.append(state)
         
@@ -162,31 +275,65 @@ class RlGame(gym.Env):
         for i in range(self.follower_num):
             follower = self.follower[f'follower{i}']
             state = [
-                follower.init_x / 1000,
-                follower.init_y / 1000,
-                follower.speed / 30,
-                follower.theta * 57.3 / 360,
-                self.leader.init_x / 1000,
-                self.leader.init_y / 1000,
-                self.leader.speed / 30
+                self._normalize_position(follower.init_x),
+                self._normalize_position(follower.init_y),
+                self._normalize_speed(follower.speed),
+                self._normalize_angle(follower.theta),
+                self._normalize_position(self.leader.init_x),
+                self._normalize_position(self.leader.init_y),
+                self._normalize_speed(self.leader.speed)
             ]
             states.append(state)
         
-        return np.array(states)
-
-    def step(self,action):
-        dis_1_obs = np.zeros((self.leader_num, 1))
-        dis_1_goal = np.zeros((self.leader_num+self.follower_num, 1))
-        r=np.zeros((self.leader_num+self.follower_num, 1))
+        observation = np.array(states, dtype=np.float32)
         
-        #边界奖励
-        edge_r=np.zeros((self.leader_num, 1))
+        # 构建 info 字典
+        info = {
+            'team_counter': self.team_counter,
+            'episode': self.game_info.get('epsoide', 0)
+        }
+        
+        return observation, info
+
+    def step(self, action):
+        """
+        执行一步环境交互
+        
+        奖励函数说明：
+        Leader 奖励组成：
+            - 边界惩罚: -1（接近边界）
+            - 碰撞惩罚: -500（撞到障碍物）
+            - 警告惩罚: -2（接近障碍物 < 40）
+            - 目标奖励: +1000（到达目标 < 40）
+            - 目标距离: -0.001 * 距离（引导向目标移动）
+            - 速度匹配: +1（每个在编队中的 Follower 速度匹配）
+            - 编队距离: -0.001 * 距离（每个不在编队中的 Follower）
+            
+        Follower 奖励组成：
+            - 边界惩罚: -1（接近边界）
+            - 警告惩罚: -2（接近障碍物 < 40）
+            - 编队距离: -0.001 * 距离（与 Leader 的距离）
+            - 速度匹配: +1（在编队中且速度匹配）
+            
+        Args:
+            action: 动作数组 [n_agents, action_dim]
+            
+        Returns:
+            observation: 归一化的观测状态
+            reward: 奖励数组 [n_agents, 1]
+            terminated: 是否因到达终止状态结束（碰撞或到达目标）
+            truncated: 是否因超时结束（本环境中不使用，返回 False）
+            info: 附加信息字典
+        """
+        dis_1_obs = np.zeros((self.leader_num, 1))
+        dis_1_goal = np.zeros((self.leader_num + self.follower_num, 1))
+        r = np.zeros((self.leader_num + self.follower_num, 1))
+        
+        # 奖励分量（使用常量定义）
+        edge_r = np.zeros((self.leader_num, 1))
         edge_r_f = np.zeros((self.follower_num, 1))
-        #避障奖励
         obstacle_r = np.zeros((self.leader_num, 1))
-        #目标奖励
         goal_r = np.zeros((self.leader_num, 1))
-        # 编队奖励
         follow_r = np.zeros((self.follower_num, 1))
         
         # 计算所有Leader到Follower的距离
@@ -212,35 +359,36 @@ class RlGame(gym.Env):
             self.leader.posy - self.goal0.init_y
         )
         
-        # 边界奖励
-        if (self.leader.posx <= C.FLIGHT_AREA_X + 50 or 
+        # 边界奖励（使用常量）
+        margin = DISTANCE_THRESHOLD['boundary_margin']
+        if (self.leader.posx <= C.FLIGHT_AREA_X + margin or 
             self.leader.posx >= C.FLIGHT_AREA_WIDTH or
             self.leader.posy >= C.FLIGHT_AREA_HEIGHT or
-            self.leader.posy <= C.FLIGHT_AREA_Y + 50):
-            edge_r[i] = -1
+            self.leader.posy <= C.FLIGHT_AREA_Y + margin):
+            edge_r[i] = REWARD_PARAMS['boundary_penalty']
         
-        # 避障奖励
+        # 避障奖励（使用常量）
         o_flag = 0
-        if dis_1_obs[i] < 20 and not self.leader.dead:
-            obstacle_r[i] = -500
+        if dis_1_obs[i] < DISTANCE_THRESHOLD['collision'] and not self.leader.dead:
+            obstacle_r[i] = REWARD_PARAMS['collision_penalty']
             self.leader.die()
             self.leader.win = False
             self.done = True
             o_flag = 1
-        elif dis_1_obs[i] < 40 and not self.leader.dead:
-            obstacle_r[i] = -2
+        elif dis_1_obs[i] < DISTANCE_THRESHOLD['warning'] and not self.leader.dead:
+            obstacle_r[i] = REWARD_PARAMS['warning_penalty']
             o_flag = 1
         
-        # 目标奖励
-        if dis_1_goal[i] < 40 and not self.leader.dead:
-            goal_r[i] = 1000.0
+        # 目标奖励（使用常量）
+        if dis_1_goal[i] < DISTANCE_THRESHOLD['goal'] and not self.leader.dead:
+            goal_r[i] = REWARD_PARAMS['goal_reward']
             self.leader.win = True
             self.leader.die()
             self.done = True
         elif not self.leader.dead:
-            goal_r[i] = -0.001 * dis_1_goal[i]
+            goal_r[i] = REWARD_PARAMS['goal_distance_coef'] * dis_1_goal[i]
         
-        # 编队奖励（考虑所有Follower）
+        # 编队奖励（考虑所有Follower，使用常量）
         follow_r_leader = 0
         speed_r_leader = 0
         formation_count = 0
@@ -249,12 +397,12 @@ class RlGame(gym.Env):
             dist = leader_follower_dist[j]
             follower = self.follower[f'follower{j}']
             
-            if 0 < dist < 50:
+            if 0 < dist < DISTANCE_THRESHOLD['formation']:
                 formation_count += 1
-                if abs(self.leader.speed - follower.speed) < 1:
-                    speed_r_leader += 1
+                if abs(self.leader.speed - follower.speed) < SPEED_MATCH_THRESHOLD:
+                    speed_r_leader += REWARD_PARAMS['speed_match_reward']
             else:
-                follow_r_leader += -0.001 * dist
+                follow_r_leader += REWARD_PARAMS['formation_distance_coef'] * dist
         
         # 如果所有Follower都在编队中，增加计数器
         if formation_count == self.follower_num:
@@ -263,16 +411,8 @@ class RlGame(gym.Env):
         # 总奖励
         r[i] = edge_r[i] + obstacle_r[i] + goal_r[i] + speed_r_leader + follow_r_leader
         
-        # 状态更新
-        self.leader_state[i] = [
-            self.leader.posx / 1000,
-            self.leader.posy / 1000,
-            self.leader.speed / 30,
-            self.leader.theta * 57.3 / 360,
-            self.goal0.init_x / 1000,
-            self.goal0.init_y / 1000,
-            o_flag
-        ]
+        # 状态更新（使用归一化辅助函数）
+        self.leader_state[i] = self._get_leader_state(obstacle_flag=o_flag)
         
         # 执行动作
         self.leader.update(action[i], self.Render)
@@ -294,49 +434,54 @@ class RlGame(gym.Env):
                 follower.posy - self.goal0.init_y
             )
             
-            # 边界奖励
-            if (follower.posx <= C.FLIGHT_AREA_X + 50 or
+            # 边界奖励（使用常量）
+            margin = DISTANCE_THRESHOLD['boundary_margin']
+            if (follower.posx <= C.FLIGHT_AREA_X + margin or
                 follower.posx >= C.FLIGHT_AREA_WIDTH or
                 follower.posy >= C.FLIGHT_AREA_HEIGHT or
-                follower.posy <= C.FLIGHT_AREA_Y + 50):
-                edge_r_f[j] = -1
+                follower.posy <= C.FLIGHT_AREA_Y + margin):
+                edge_r_f[j] = REWARD_PARAMS['boundary_penalty']
             
-            # 避障警告
+            # 避障警告（使用常量）
             obstacle_r_f = 0
-            if dis_2_obs < 40:
-                obstacle_r_f = -2
+            if dis_2_obs < DISTANCE_THRESHOLD['warning']:
+                obstacle_r_f = REWARD_PARAMS['warning_penalty']
             
-            # 跟随奖励
+            # 跟随奖励（使用常量）
             dist_to_leader = leader_follower_dist[j]
             speed_r_f = 0
             
-            if 0 < dist_to_leader < 50 and dis_1_goal[0] < dis_1_goal[i]:
-                if abs(self.leader.speed - follower.speed) < 1:
-                    speed_r_f = 1
+            if 0 < dist_to_leader < DISTANCE_THRESHOLD['formation'] and dis_1_goal[0] < dis_1_goal[i]:
+                if abs(self.leader.speed - follower.speed) < SPEED_MATCH_THRESHOLD:
+                    speed_r_f = REWARD_PARAMS['speed_match_reward']
                 follow_r[j] = 0
             else:
-                follow_r[j] = -0.001 * dist_to_leader
+                follow_r[j] = REWARD_PARAMS['formation_distance_coef'] * dist_to_leader
             
             # 总奖励
             r[i] = edge_r_f[j] + obstacle_r_f + follow_r[j] + speed_r_f
             
-            # 状态更新
-            self.leader_state[i] = [
-                follower.posx / 1000,
-                follower.posy / 1000,
-                follower.speed / 30,
-                follower.theta * 57.3 / 360,
-                self.leader.posx / 1000,
-                self.leader.posy / 1000,
-                self.leader.speed / 30
-            ]
+            # 状态更新（使用归一化辅助函数）
+            self.leader_state[i] = self._get_follower_state(follower)
             
             # 执行动作
             follower.update(action[i], self.Render)
         
-        leader_state = copy.deepcopy(self.leader_state)
-        done = copy.deepcopy(self.done)
-        return leader_state,r,done,self.leader.win,self.team_counter
+        # 构建返回值（符合 Gymnasium 标准）
+        observation = copy.deepcopy(self.leader_state).astype(np.float32)
+        reward = r
+        terminated = copy.deepcopy(self.done)  # 因碰撞或到达目标而终止
+        truncated = False  # 本环境不使用时间限制截断
+        
+        # 构建 info 字典
+        info = {
+            'win': self.leader.win,
+            'team_counter': self.team_counter,
+            'leader_reward': float(r[0]),
+            'follower_rewards': [float(r[self.leader_num + j]) for j in range(self.follower_num)]
+        }
+        
+        return observation, reward, terminated, truncated, info
     def render(self):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:

@@ -194,7 +194,8 @@ class Tester:
             episode_seed = get_episode_seed(self.base_seed, j, mode='test')
             set_global_seed(episode_seed, deterministic=False)
             
-            state = self.env.reset()
+            # 重置环境（符合 Gymnasium 标准）
+            state, reset_info = self.env.reset()
             total_rewards = 0
             integral_V = 0
             integral_U = 0
@@ -204,8 +205,13 @@ class Tester:
                 # 选择动作（每个智能体使用自己的权重）
                 action = self._select_actions(actors, state)
                 
-                # 执行动作
-                new_state, reward, done, win, team_counter = self.env.step(action)
+                # 执行动作（符合 Gymnasium 标准）
+                new_state, reward, terminated, truncated, info = self.env.step(action)
+                
+                # 从 info 中提取额外信息
+                win = info['win']
+                team_counter = info['team_counter']
+                done = terminated or truncated
                 
                 # 记录胜利
                 if win:
