@@ -11,10 +11,11 @@ import sys
 import re
 import shutil
 from datetime import datetime
-from utils import get_model_path, get_data_path, set_global_seed, get_episode_seed, print_seed_info, get_project_root, ensure_dir
+from utils import set_global_seed, get_episode_seed, print_seed_info, get_project_root, load_config, set_env_vars
 from .agent import Actor, Critic, Entropy
 from .buffer import Memory
 from .noise import Ornstein_Uhlenbeck_Noise
+from rl_env.path_env import RlGame
 
 
 class Logger:
@@ -49,60 +50,104 @@ class Trainer:
     """
     MASAC 训练器
     
-    职责分离设计：
-    - __init__: 接受配置参数（环境实例、网络结构、算法超参数、智能体数量）
-    - train: 接受训练参数（训练轮数、渲染等）
+    简化设计：
+    - 直接接受YAML配置文件路径
+    - 自动创建环境和加载所有参数
+    - 支持通过kwargs覆盖配置文件中的参数
     
-    这样设计的好处：
-    1. 一个训练器对应一个环境，简洁明了
-    2. 网络结构在初始化时确定（n_leader, n_follower决定网络维度）
-    3. train方法只需要控制训练流程，不需要传递环境
-    4. 适合大多数使用场景（固定环境训练）
-    
-    Args (配置参数):
-        env: Gym环境实例
-        n_leader: Leader数量（决定网络结构）
-        n_follower: Follower数量（决定网络结构）
-        state_dim: 状态维度
-        action_dim: 动作维度
-        max_action: 动作最大值
-        min_action: 动作最小值
-        hidden_dim: 网络隐藏层维度
-        gamma: 折扣因子
-        q_lr: Q网络学习率
-        value_lr: Value网络学习率
-        policy_lr: Policy学习率
-        tau: 软更新系数
-        batch_size: 批次大小
-        memory_capacity: 经验池容量
-        data_save_name: 数据保存文件名
-    """
-    def __init__(self, 
-                 env,
-                 n_leader,
-                 n_follower,
-                 state_dim,
-                 action_dim,
-                 max_action,
-                 min_action,
-                 hidden_dim=256,
-                 gamma=0.9,
-                 q_lr=3e-4,
-                 value_lr=3e-3,
-                 policy_lr=1e-3,
-                 tau=1e-2,
-                 batch_size=128,
-                 memory_capacity=20000,
-                 device='auto',
-                 seed=42,
-                 deterministic=False,
-                 experiment_name='baseline',
-                 save_dir_prefix='exp'):
+    使用示例：
+        # 使用默认配置
+        trainer = Trainer(config="configs/masac/default.yaml")
+        trainer.train()
         
-        # 环境实例
-        self.env = env
+        # 覆盖部分参数
+        trainer = Trainer(config="configs/masac/default.yaml", 
+                         ep_max=1000, device='cuda:1')
+        trainer.train()
+    
+    Args:
+        config: YAML配置文件路径
+        **kwargs: 可选的参数覆盖（会覆盖配置文件中的对应参数）
+    """
+    def __init__(self, config, **kwargs):
+        """
+        初始化训练器
+        
+        Args:
+            config: YAML配置文件路径
+            **kwargs: 可选的参数覆盖
+        """
+        # 加载配置文件
+        self.config_path = config
+        cfg = load_config(config)
+        
+        # 使用kwargs覆盖配置
+        for key, value in kwargs.items():
+            if '.' in key:  # 支持嵌套参数，如 training.ep_max
+                sections = key.split('.')
+                target = cfg
+                for section in sections[:-1]:
+                    target = target[section]
+                target[sections[-1]] = value
+            else:
+                # 自动查找并更新参数
+                for section in cfg.values():
+                    if isinstance(section, dict) and key in section:
+                        section[key] = value
+                        break
+        
+        # 设置环境变量
+        set_env_vars(cfg)
+        
+        # 从配置中提取参数
+        env_cfg = cfg['environment']
+        train_cfg = cfg['training']
+        net_cfg = cfg['network']
+        output_cfg = cfg.get('output', {})
+        
+        # 创建环境
+        self.env = RlGame(
+            n=env_cfg['n_leader'],
+            m=env_cfg['n_follower'],
+            render=train_cfg.get('render', False)
+        ).unwrapped
+        
+        # 从环境获取动作空间参数
+        action_dim = self.env.action_space.shape[0]
+        max_action = self.env.action_space.high[0]
+        min_action = self.env.action_space.low[0]
+        
+        # 智能体数量（决定网络结构）
+        self.n_leader = env_cfg['n_leader']
+        self.n_follower = env_cfg['n_follower']
+        self.n_agents = self.n_leader + self.n_follower
+        
+        # 状态和动作空间参数
+        self.state_dim = env_cfg['state_dim']
+        self.action_dim = action_dim
+        self.max_action = max_action
+        self.min_action = min_action
+        
+        # 网络参数
+        self.hidden_dim = net_cfg['hidden_dim']
+        self.q_lr = net_cfg['q_lr']
+        self.value_lr = net_cfg['value_lr']
+        self.policy_lr = net_cfg['policy_lr']
+        self.tau = net_cfg['tau']
+        
+        # 训练算法参数
+        self.gamma = train_cfg['gamma']
+        self.batch_size = train_cfg['batch_size']
+        self.memory_capacity = train_cfg['memory_capacity']
+        
+        # 训练参数（保存以便train()使用）
+        self.ep_max = train_cfg['ep_max']
+        self.ep_len = train_cfg['ep_len']
+        self.train_num = train_cfg['train_num']
+        self.render = train_cfg.get('render', False)
         
         # 设备选择
+        device = cfg.get('device', 'auto')
         if device == 'auto':
             self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         else:
@@ -112,39 +157,29 @@ class Trainer:
         self._print_device_info()
         
         # 随机种子管理
-        self.base_seed = seed
-        self.deterministic = deterministic
+        seed_cfg = cfg.get('seed', {})
+        self.base_seed = seed_cfg.get('base_seed', 42)
+        self.deterministic = seed_cfg.get('deterministic', False)
         
         # 设置初始全局种子
-        set_global_seed(seed, deterministic)
-        print_seed_info(seed, mode='train', deterministic=deterministic)
+        set_global_seed(self.base_seed, self.deterministic)
+        print_seed_info(self.base_seed, mode='train', deterministic=self.deterministic)
         
-        # 智能体数量（决定网络结构）
-        self.n_leader = n_leader
-        self.n_follower = n_follower
-        self.n_agents = n_leader + n_follower
+        # 实验配置
+        self.experiment_name = train_cfg.get('experiment_name', 'baseline')
+        self.save_dir_prefix = train_cfg.get('save_dir_prefix', 'exp')
         
-        # 状态和动作空间参数
-        self.state_dim = state_dim
-        self.action_dim = action_dim
-        self.max_action = max_action
-        self.min_action = min_action
-        
-        # 网络参数
-        self.hidden_dim = hidden_dim
-        self.q_lr = q_lr
-        self.value_lr = value_lr
-        self.policy_lr = policy_lr
-        self.tau = tau
-        
-        # 算法参数
-        self.gamma = gamma
-        self.batch_size = batch_size
-        self.memory_capacity = memory_capacity
+        # 输出配置
+        self.verbose = output_cfg.get('verbose', True)
+        self.log_interval = output_cfg.get('log_interval', 1)
+        self.save_interval = output_cfg.get('save_interval', 20)
         
         # 创建独立的输出目录
-        self.output_dir = self._create_output_dir(experiment_name, save_dir_prefix)
+        self.output_dir = self._create_output_dir(self.experiment_name, self.save_dir_prefix)
         print(f"📁 输出目录: {self.output_dir}")
+        
+        # 保存配置文件副本
+        self._save_config(self.config_path)
         
         # 初始化日志系统
         self.logger = None
@@ -390,7 +425,7 @@ class Trainer:
             actors: Actor列表
             episode: 当前轮数
         """
-        if episode % 20 == 0 and episode > 200:
+        if episode % self.save_interval == 0 and episode > 200:
             # 保存 Leader 模型（所有Leader的权重）
             leader_save_data = {}
             for i in range(self.n_leader):
@@ -527,19 +562,25 @@ class Trainer:
         plt.savefig(f'{plot_dir}/follower_reward.png', dpi=300)
         print(f"✅ Follower奖励曲线已保存: {plot_dir}/follower_reward.png")
     
-    def train(self, ep_max=500, ep_len=1000, train_num=1, render=False):
+    def train(self, ep_max=None, ep_len=None, train_num=None, render=None):
         """
         执行完整的训练流程
         
-        Args (训练参数):
-            ep_max: 最大训练轮数
-            ep_len: 每轮最大步数
-            train_num: 训练次数（用于多次实验）
-            render: 是否渲染
+        Args (可选，用于临时覆盖配置):
+            ep_max: 最大训练轮数（默认使用配置文件中的值）
+            ep_len: 每轮最大步数（默认使用配置文件中的值）
+            train_num: 训练次数（默认使用配置文件中的值）
+            render: 是否渲染（默认使用配置文件中的值）
             
         Returns:
             data: 训练统计数据字典
         """
+        # 使用配置文件中的参数作为默认值
+        ep_max = ep_max if ep_max is not None else self.ep_max
+        ep_len = ep_len if ep_len is not None else self.ep_len
+        train_num = train_num if train_num is not None else self.train_num
+        render = render if render is not None else self.render
+        
         print('SAC训练中...')
         
         # 初始化训练统计

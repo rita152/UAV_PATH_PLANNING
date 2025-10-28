@@ -74,11 +74,17 @@ conda activate UAV_PATH_PLANNING
 # 1. 激活环境（必须）
 conda activate UAV_PATH_PLANNING
 
-# 2. 使用默认配置训练
+# 2. 使用默认配置训练（最简单）
 python scripts/baseline/train.py
 
-# 3. 使用自定义配置（多Follower示例）
+# 3. 使用自定义配置
 python scripts/baseline/train.py --config configs/masac/multi_follower.yaml
+
+# 4. 覆盖配置中的参数（无需修改配置文件）
+python scripts/baseline/train.py --ep_max 1000 --device cuda:1
+
+# 5. 同时指定配置和覆盖参数
+python scripts/baseline/train.py --config my_config.yaml --ep_max 2000 --seed 123
 ```
 
 **测试模式**：
@@ -183,6 +189,82 @@ UAV_PATH_PLANNING/
         ├── training_data.pkl  # 训练数据
         └── plots/          # 奖励曲线图
 ```
+
+## 📖 API 使用示例
+
+### 简化的Trainer API
+
+Trainer类现在采用**配置优先**的设计，使用更简洁：
+
+```python
+from algorithm.masac import Trainer
+
+# 方式1：使用默认配置（最简单）
+trainer = Trainer(config="configs/masac/default.yaml")
+trainer.train()
+
+# 方式2：覆盖部分参数（无需修改配置文件）
+trainer = Trainer(
+    config="configs/masac/default.yaml",
+    ep_max=1000,           # 覆盖训练轮数
+    device='cuda:1',       # 覆盖设备
+    seed=123               # 覆盖随机种子
+)
+trainer.train()
+
+# 方式3：临时覆盖训练参数
+trainer = Trainer(config="configs/masac/default.yaml")
+trainer.train(ep_max=500, render=True)  # 仅本次训练使用这些参数
+```
+
+### 命令行参数覆盖
+
+所有配置参数都支持通过命令行覆盖：
+
+```bash
+# 覆盖训练参数
+python scripts/baseline/train.py --ep_max 1000 --ep_len 2000
+
+# 覆盖算法参数
+python scripts/baseline/train.py --gamma 0.95 --batch_size 256
+
+# 覆盖设备和种子
+python scripts/baseline/train.py --device cuda:1 --seed 123
+
+# 同时覆盖多个参数
+python scripts/baseline/train.py --config my_config.yaml \
+    --ep_max 2000 --device cuda:1 --seed 42 --batch_size 128
+```
+
+### 支持的命令行参数
+
+**所有YAML配置文件中的参数都支持通过命令行覆盖**：
+
+| 类别 | 参数 | 说明 | YAML路径 |
+|------|------|------|----------|
+| **训练** | `--ep_max` | 最大训练轮数 | `training.ep_max` |
+| | `--ep_len` | 每轮最大步数 | `training.ep_len` |
+| | `--train_num` | 训练次数 | `training.train_num` |
+| | `--render` | 是否渲染 | `training.render` |
+| | `--gamma` | 折扣因子 | `training.gamma` |
+| | `--batch_size` | 批次大小 | `training.batch_size` |
+| | `--memory_capacity` | 经验池容量 | `training.memory_capacity` |
+| **环境** | `--n_leader` | Leader数量 | `environment.n_leader` |
+| | `--n_follower` | Follower数量 | `environment.n_follower` |
+| | `--state_dim` | 状态维度 | `environment.state_dim` |
+| **网络** | `--hidden_dim` | 隐藏层维度 | `network.hidden_dim` |
+| | `--q_lr` | Q网络学习率 | `network.q_lr` |
+| | `--policy_lr` | 策略网络学习率 | `network.policy_lr` |
+| | `--value_lr` | Value网络学习率 | `network.value_lr` |
+| | `--tau` | 软更新系数 | `network.tau` |
+| **系统** | `--device` | 训练设备 | `training.device` |
+| | `--seed` | 随机种子 | `training.seed` |
+| | `--deterministic` | 完全确定性模式 | `training.deterministic` |
+| **实验** | `--experiment_name` | 实验名称 | `training.experiment_name` |
+| | `--save_dir_prefix` | 保存目录前缀 | `training.save_dir_prefix` |
+| **输出** | `--verbose` | 详细输出 | `output.verbose` |
+| | `--log_interval` | 日志输出间隔 | `output.log_interval` |
+| | `--save_interval` | 模型保存间隔 | `output.save_interval` |
 
 ## ⚙️ 核心参数配置
 
@@ -757,7 +839,17 @@ print(PROJECT_ROOT)  # 项目根目录
 
 ### 最近更新 (2025-10-28)
 
-#### 📝 训练日志自动保存（最新）
+#### 🎯 API重构：简化Trainer调用（最新）
+✅ **配置化初始化**：`Trainer(config="config.yaml")` 一行代码创建训练器  
+✅ **自动环境创建**：Trainer内部自动创建和配置环境  
+✅ **参数覆盖支持**：`Trainer(config="...", ep_max=1000, device='cuda:1')`  
+✅ **全面命令行支持**：YAML中的**所有25个参数**都支持命令行覆盖  
+✅ **智能参数查找**：自动在配置的各section中查找并覆盖参数  
+✅ **更简洁的API**：`train()`方法无需传递参数  
+✅ **代码行数减少**：train.py 从130行简化到122行  
+✅ **配置文件自动保存**：训练时自动保存配置副本到输出目录  
+
+#### 📝 训练日志自动保存
 ✅ **实时日志记录**：训练过程中的所有输出自动保存到.log文件  
 ✅ **双路输出**：同时输出到终端和日志文件，互不影响  
 ✅ **智能处理**：终端保留彩色显示，文件自动去除颜色代码（纯文本）  
