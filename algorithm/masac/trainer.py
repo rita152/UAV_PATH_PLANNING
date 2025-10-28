@@ -7,12 +7,42 @@ import numpy as np
 from matplotlib import pyplot as plt
 import pickle as pkl
 import os
+import sys
+import re
 import shutil
 from datetime import datetime
 from utils import get_model_path, get_data_path, set_global_seed, get_episode_seed, print_seed_info, get_project_root, ensure_dir
 from .agent import Actor, Critic, Entropy
 from .buffer import Memory
 from .noise import Ornstein_Uhlenbeck_Noise
+
+
+class Logger:
+    """
+    同时输出到终端和文件的日志类
+    实时写入，无缓冲
+    终端保留颜色，文件去除ANSI颜色代码
+    """
+    def __init__(self, log_file):
+        self.terminal = sys.stdout
+        self.log = open(log_file, 'a', buffering=1)  # 行缓冲，实时写入
+        # 编译正则表达式，用于去除ANSI颜色代码
+        self.ansi_escape = re.compile(r'\x1b\[[0-9;]*m')
+        
+    def write(self, message):
+        # 终端输出保留颜色
+        self.terminal.write(message)
+        # 文件输出去除颜色代码
+        clean_message = self.ansi_escape.sub('', message)
+        self.log.write(clean_message)
+        self.log.flush()  # 强制刷新到磁盘
+        
+    def flush(self):
+        self.terminal.flush()
+        self.log.flush()
+        
+    def close(self):
+        self.log.close()
 
 
 class Trainer:
@@ -115,6 +145,11 @@ class Trainer:
         # 创建独立的输出目录
         self.output_dir = self._create_output_dir(experiment_name, save_dir_prefix)
         print(f"📁 输出目录: {self.output_dir}")
+        
+        # 初始化日志系统
+        self.logger = None
+        self.original_stdout = None
+        self._setup_logger()
     
     def _create_output_dir(self, experiment_name, save_dir_prefix):
         """
@@ -141,6 +176,26 @@ class Trainer:
         os.makedirs(os.path.join(output_dir, 'plots'), exist_ok=True)
         
         return output_dir
+    
+    def _setup_logger(self):
+        """
+        设置日志系统，将输出重定向到文件和终端
+        """
+        log_file = os.path.join(self.output_dir, 'training.log')
+        self.original_stdout = sys.stdout
+        self.logger = Logger(log_file)
+        sys.stdout = self.logger
+        print(f"📝 日志文件: {log_file}")
+        print(f"💡 训练输出将实时保存到日志文件")
+    
+    def _close_logger(self):
+        """
+        关闭日志系统，恢复标准输出
+        """
+        if self.logger is not None:
+            sys.stdout = self.original_stdout
+            self.logger.close()
+            print(f"✅ 日志已保存: {os.path.join(self.output_dir, 'training.log')}")
     
     def _save_config(self, config_path):
         """
@@ -501,10 +556,14 @@ class Trainer:
             # 打印表头
             print("\n" + "="*80)
             header_parts = ["Episode"]
-            for i in range(self.n_leader):
-                header_parts.append(f"Leader{i}")
+            # Leader列（只有1个leader，直接使用"Leader"）
+            header_parts.append("Leader")
+            # Follower列（根据数量添加）
             for j in range(self.n_follower):
-                header_parts.append(f"Follower{j}")
+                if self.n_follower == 1:
+                    header_parts.append("Follower")
+                else:
+                    header_parts.append(f"Follower{j}")
             header_parts.append("Steps")
             header_parts.append("Status")
             print(" | ".join([f"{part:^12}" for part in header_parts]))
@@ -600,6 +659,9 @@ class Trainer:
         
         # 绘制结果
         self._plot_results(data)
+        
+        # 关闭日志
+        self._close_logger()
         
         # 关闭环境
         self.env.close()

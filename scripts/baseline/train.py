@@ -112,6 +112,7 @@ def main():
     print(f"所有文件已保存到: {trainer.output_dir}")
     print("\n文件清单：")
     print(f"  ├── config.yaml          # 本次训练的配置文件")
+    print(f"  ├── training.log         # 训练过程日志（实时更新）")
     print(f"  ├── leader.pth           # Leader模型 ({params['n_leader']}个)")
     if params['n_follower'] > 0:
         print(f"  ├── follower.pth         # Follower模型 ({params['n_follower']}个独立权重)")
