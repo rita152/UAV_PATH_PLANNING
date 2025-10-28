@@ -6,7 +6,7 @@ import torch
 import numpy as np
 from matplotlib import pyplot as plt
 import pickle as pkl
-from utils import get_model_path, get_data_path
+from utils import get_model_path, get_data_path, set_global_seed, get_episode_seed, print_seed_info
 from .agent import Actor, Critic, Entropy
 from .buffer import Memory
 from .noise import Ornstein_Uhlenbeck_Noise
@@ -61,6 +61,8 @@ class Trainer:
                  batch_size=128,
                  memory_capacity=20000,
                  device='auto',
+                 seed=42,
+                 deterministic=False,
                  data_save_name='MASAC_new1.pkl'):
         
         # 环境实例
@@ -74,6 +76,14 @@ class Trainer:
         
         # 打印设备信息
         self._print_device_info()
+        
+        # 随机种子管理
+        self.base_seed = seed
+        self.deterministic = deterministic
+        
+        # 设置初始全局种子
+        set_global_seed(seed, deterministic)
+        print_seed_info(seed, mode='train', deterministic=deterministic)
         
         # 智能体数量（决定网络结构）
         self.n_leader = n_leader
@@ -428,6 +438,10 @@ class Trainer:
             
             # 训练循环
             for episode in range(ep_max):
+                # 为每个episode设置不同的种子（确保可复现）
+                episode_seed = get_episode_seed(self.base_seed, episode, mode='train')
+                set_global_seed(episode_seed, self.deterministic)
+                
                 observation = self.env.reset()
                 reward_total = 0
                 

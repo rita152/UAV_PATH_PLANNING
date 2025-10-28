@@ -74,6 +74,8 @@ def main():
         batch_size=params['batch_size'],
         memory_capacity=params['memory_capacity'],
         device=params['device'],
+        seed=params['seed'],
+        deterministic=params['deterministic'],
         data_save_name=params['data_save_name']
     )
     

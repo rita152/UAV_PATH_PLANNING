@@ -1,19 +1,10 @@
-# MASAC 默认配置文件
-# UAV Path Planning - Multi-Agent Soft Actor-Critic
-
-# ============================================
-# 环境配置
-# ============================================
 environment:
   n_leader: 1              # Leader 数量
   n_follower: 1            # Follower 数量
   render: false            # 是否渲染可视化
   state_dim: 7             # 状态维度
   action_dim: 2            # 动作维度（自动从环境获取）
-
-# ============================================
-# 训练配置
-# ============================================
+  
 training:
   ep_max: 500              # 最大训练轮数
   ep_len: 1000             # 每轮最大步数
@@ -24,6 +15,10 @@ training:
   
   # 设备配置
   device: 'auto'           # 'auto', 'cpu', 'cuda', 'cuda:0', 'cuda:1'
+  
+  # 随机种子配置
+  seed: 42                 # 基础随机种子（训练种子: seed+episode）
+  deterministic: false     # 完全确定性（牺牲10-30%性能）
   
   # 数据保存
   data_save_name: 'MASAC_new1.pkl'  # 训练数据保存文件名

@@ -4,7 +4,7 @@ MASAC 测试器
 """
 import torch
 import numpy as np
-from utils import get_model_path
+from utils import get_model_path, set_global_seed, get_episode_seed, print_seed_info
 from .agent import Actor
 
 
@@ -46,6 +46,7 @@ class Tester:
                  hidden_dim=256,
                  policy_lr=1e-3,
                  device='auto',
+                 seed=42,
                  leader_model_path=None,
                  follower_model_path=None):
         
@@ -64,6 +65,13 @@ class Tester:
             print(f"🚀 使用GPU测试: {gpu_name}")
         else:
             print(f"💻 使用CPU测试")
+        
+        # 随机种子管理（测试使用不同的种子空间）
+        self.base_seed = seed
+        
+        # 设置初始全局种子
+        set_global_seed(seed, deterministic=False)
+        print_seed_info(seed, mode='test', deterministic=False)
         
         # 智能体数量
         self.n_leader = n_leader
@@ -165,6 +173,10 @@ class Tester:
         
         # 测试循环
         for j in range(test_episode):
+            # 为每个episode设置不同的种子（测试种子空间）
+            episode_seed = get_episode_seed(self.base_seed, j, mode='test')
+            set_global_seed(episode_seed, deterministic=False)
+            
             state = self.env.reset()
             total_rewards = 0
             integral_V = 0

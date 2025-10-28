@@ -1,6 +1,6 @@
 """
 Utils 工具模块
-提供路径管理、文件操作、配置加载等通用工具函数
+提供路径管理、文件操作、配置加载、随机种子管理等通用工具函数
 """
 
 from .path_utils import (
@@ -21,6 +21,12 @@ from .config_loader import (
     print_config
 )
 
+from .seed_utils import (
+    set_global_seed,
+    get_episode_seed,
+    print_seed_info
+)
+
 __all__ = [
     'get_project_root',
     'get_abs_path',
@@ -33,6 +39,9 @@ __all__ = [
     'set_env_vars',
     'get_train_params',
     'get_test_params',
-    'print_config'
+    'print_config',
+    'set_global_seed',
+    'get_episode_seed',
+    'print_seed_info'
 ]
 

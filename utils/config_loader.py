@@ -82,6 +82,8 @@ def get_train_params(config: Dict[str, Any]) -> Dict[str, Any]:
     params['batch_size'] = train_config.get('batch_size', 128)
     params['memory_capacity'] = train_config.get('memory_capacity', 20000)
     params['device'] = train_config.get('device', 'auto')
+    params['seed'] = train_config.get('seed', 42)
+    params['deterministic'] = train_config.get('deterministic', False)
     params['data_save_name'] = train_config.get('data_save_name', 'MASAC_new1.pkl')
     
     # 网络参数
@@ -124,6 +126,9 @@ def get_test_params(config: Dict[str, Any]) -> Dict[str, Any]:
     # 设备配置（测试也可能需要GPU）
     train_config = config.get('training', {})
     params['device'] = train_config.get('device', 'auto')
+    
+    # 种子配置（测试使用与训练相同的base_seed，但不同的偏移）
+    params['seed'] = train_config.get('seed', 42)
     
     # 网络参数
     net_config = config.get('network', {})

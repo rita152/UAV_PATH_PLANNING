@@ -68,6 +68,7 @@ def main():
         hidden_dim=params['hidden_dim'],
         policy_lr=params['policy_lr'],
         device=params['device'],
+        seed=params['seed'],
         leader_model_path=params['leader_model_path'],
         follower_model_path=params['follower_model_path']
     )
