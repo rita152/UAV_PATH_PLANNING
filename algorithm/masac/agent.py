@@ -8,13 +8,15 @@ from .model import ActorNet, CriticNet
 
 
 class Actor:
-    def __init__(self, state_dim, action_dim, max_action, min_action, hidden_dim, policy_lr, device='cpu'):
+    def __init__(self, state_dim, action_dim, max_action, min_action, hidden_dim, policy_lr, 
+                 device='cpu', use_layer_norm=True):
         self.max_action = max_action
         self.min_action = min_action
         self.device = torch.device(device)
         
-        # 创建网络并移到设备
-        self.action_net = ActorNet(state_dim, action_dim, max_action, hidden_dim)
+        # 创建网络并移到设备（支持 Layer Normalization）
+        self.action_net = ActorNet(state_dim, action_dim, max_action, hidden_dim, 
+                                   use_layer_norm=use_layer_norm)
         self.action_net.to(self.device)
         
         self.optimizer = torch.optim.Adam(self.action_net.parameters(), lr=policy_lr)
@@ -31,18 +33,36 @@ class Actor:
         return action.cpu().detach().numpy()
     
     def evaluate(self, state):
-        """评估动作（用于训练）- 输入输出都是GPU tensor"""
-        # state已经是GPU上的tensor
+        """
+        评估动作（用于训练）- 输入输出都是GPU tensor
+        
+        使用正确的重参数化技巧（reparameterization trick）:
+        1. 使用 rsample() 保持梯度
+        2. 对 tanh 变换前的值计算 log_prob
+        3. 应用 tanh 修正
+        4. 对动作维度求和
+        
+        Args:
+            state: 输入状态 (GPU tensor)
+            
+        Returns:
+            action: 采样的动作 (GPU tensor)
+            log_prob: 对数概率 (GPU tensor)
+        """
+        # state 已经是 GPU 上的 tensor
         mean, std = self.action_net(state)
-        distribution = torch.distributions.Normal(mean, std)
+        normal = torch.distributions.Normal(mean, std)
         
-        noise_distribution = torch.distributions.Normal(0, 1)
-        noise = noise_distribution.sample().to(self.device)
-        
-        action = torch.tanh(mean + std * noise)
+        # 重参数化采样（保持梯度）
+        x_t = normal.rsample()  # ✅ 使用 rsample 而不是 sample
+        action = torch.tanh(x_t)
         action = torch.clamp(action, self.min_action, self.max_action)
         
-        log_prob = distribution.log_prob(mean + std * noise) - torch.log(1 - action.pow(2) + 1e-6)
+        # 计算 log_prob 并应用 tanh 修正
+        log_prob = normal.log_prob(x_t)
+        log_prob -= torch.log(1 - action.pow(2) + 1e-6)
+        log_prob = log_prob.sum(dim=-1, keepdim=True)  # ✅ 对动作维度求和
+        
         return action, log_prob
 
     def update(self, loss):
@@ -77,13 +97,13 @@ class Critic:
     Critic 网络（Q值估计）
     使用 Double Q-Network 减少过估计
     """
-    def __init__(self, state_dim, action_dim, hidden_dim, value_lr, tau, device='cpu'):
+    def __init__(self, state_dim, action_dim, hidden_dim, value_lr, tau, device='cpu', use_layer_norm=True):
         self.tau = tau
         self.device = torch.device(device)
         
-        # 创建网络并移到设备
-        self.critic_net = CriticNet(state_dim, action_dim, hidden_dim)
-        self.target_critic_net = CriticNet(state_dim, action_dim, hidden_dim)
+        # 创建网络并移到设备（支持 Layer Normalization）
+        self.critic_net = CriticNet(state_dim, action_dim, hidden_dim, use_layer_norm=use_layer_norm)
+        self.target_critic_net = CriticNet(state_dim, action_dim, hidden_dim, use_layer_norm=use_layer_norm)
         self.critic_net.to(self.device)
         self.target_critic_net.to(self.device)
         
