@@ -1,8 +1,8 @@
 import numpy as np
 import copy
-import gym
+import gymnasium as gym
 from assignment import constants as C
-from gym import spaces
+from gymnasium import spaces
 import math
 import random
 import pygame

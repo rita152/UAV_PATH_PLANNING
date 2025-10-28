@@ -18,7 +18,7 @@
 ## 🛠️ 技术栈
 
 - **深度学习框架**：PyTorch
-- **强化学习环境**：OpenAI Gym
+- **强化学习环境**：Gymnasium (OpenAI Gym 的维护版本)
 - **可视化**：Pygame, Matplotlib
 - **数值计算**：NumPy
 - **编程语言**：Python 3.7+
@@ -46,12 +46,12 @@ conda create -n UAV_PATH_PLANNING python=3.8
 # 激活环境
 conda activate UAV_PATH_PLANNING
 
-# 安装依赖包（方式1：使用 requirements.txt）
+# 安装依赖包（方式1：使用 requirements.txt，推荐）
 pip install -r requirements.txt
 
 # 或者手动安装（方式2）
 pip install torch torchvision
-pip install gym pygame numpy matplotlib
+pip install gymnasium pygame numpy matplotlib
 ```
 
 ### ⚠️ 重要提示
@@ -302,6 +302,15 @@ AI 将从以下 **6 个维度**进行深度分析：
 - ✅ 提交后自动推送到 GitHub
 - ✅ 保持简洁一致的提交信息
 
+## 📂 模型保存
+
+训练过程中，模型会自动保存到 `saved_models/` 目录：
+- `Path_SAC_actor_L1.pth` - Leader 模型
+- `Path_SAC_actor_F1.pth` - Follower 模型
+- `MASAC_new1.pkl` - 训练数据
+
+**建议**：将 `saved_models/` 目录添加到 `.gitignore` 以避免提交大文件。
+
 ## 🔧 故障排除
 
 ### 常见问题
@@ -310,13 +319,38 @@ AI 将从以下 **6 个维度**进行深度分析：
    - 当前版本仅支持1个Follower
    - 需要修改 `path_env.py` 中的相关代码以支持多个Follower
 
-2. **路径找不到错误**
-   - 检查硬编码的绝对路径
-   - 修改为相对路径或使用 `os.path.join()`
+2. **依赖安装问题**
+   - 确保安装的是 `gymnasium` 而不是旧的 `gym`
+   - 如果之前安装过 gym，建议先卸载：`pip uninstall gym`
+   - 然后安装 gymnasium：`pip install gymnasium>=0.28.0`
 
-3. **pygame初始化失败**
+3. **MSELoss 维度不匹配警告**
+   - 已修复：使用 `log_prob.sum(dim=-1, keepdim=True)` 确保维度匹配
+
+4. **pygame初始化失败**
    - 确保安装了pygame：`pip install pygame`
    - 如果无需可视化，设置 `RENDER=False`
+
+### 最近更新 (2025-10-28)
+
+✅ **升级到 Gymnasium**：替换已过时的 Gym 库  
+✅ 修复 MSELoss 维度不匹配问题（SAC 算法 bug）  
+✅ 移除硬编码绝对路径，使用项目相对路径  
+✅ 自动创建 `saved_models/` 目录保存模型  
+✅ 优化代码注释和格式
+
+### 迁移说明
+
+如果您之前使用的是 Gym：
+```bash
+# 1. 卸载旧的 gym
+pip uninstall gym
+
+# 2. 安装 gymnasium
+pip install gymnasium>=0.28.0
+
+# 3. 代码已自动适配，无需手动修改
+```
 
 ## 📝 开发规范
 
