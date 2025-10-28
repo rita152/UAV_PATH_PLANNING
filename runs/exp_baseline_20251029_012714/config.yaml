@@ -13,9 +13,10 @@ training:
   batch_size: 128          # 批次大小
   memory_capacity: 20000   # 经验池容量
   
-  # 优先级经验回放配置（默认启用）
-  per_alpha: 0.6           # 优先级指数（0=均匀, 1=完全优先级，推荐0.6）
-  per_beta: 0.4            # IS权重初始值（训练中逐渐增长到1.0）
+  # 优先级经验回放配置
+  use_prioritized: true    # 是否使用优先级经验回放（PER）
+  per_alpha: 0.6           # 优先级指数（0=均匀采样, 1=完全优先级）
+  per_beta: 0.4            # 重要性采样权重初始值（逐渐增长到1.0）
   per_beta_increment: 0.001 # beta增长速率
   
   # 设备配置

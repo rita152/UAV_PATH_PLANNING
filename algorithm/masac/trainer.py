@@ -140,6 +140,11 @@ class Trainer:
         self.batch_size = train_cfg['batch_size']
         self.memory_capacity = train_cfg['memory_capacity']
         
+        # 优先级经验回放参数（默认启用）
+        self.per_alpha = train_cfg.get('per_alpha', 0.6)
+        self.per_beta = train_cfg.get('per_beta', 0.4)
+        self.per_beta_increment = train_cfg.get('per_beta_increment', 0.001)
+        
         # 训练参数（保存以便train()使用）
         self.ep_max = train_cfg['ep_max']
         self.ep_len = train_cfg['ep_len']
@@ -300,15 +305,31 @@ class Trainer:
     
     def _initialize_memory(self):
         """
-        初始化经验回放缓冲区
+        初始化优先级经验回放缓冲区
         
         Returns:
-            memory: 经验回放缓冲区
+            memory: 优先级经验回放缓冲区
         """
         transition_dim = (2 * self.state_dim * self.n_agents + 
                          self.action_dim * self.n_agents + 
                          1 * self.n_agents)
-        return Memory(capacity=self.memory_capacity, transition_dim=transition_dim)
+        
+        # 创建优先级经验回放缓冲区
+        memory = Memory(
+            capacity=self.memory_capacity,
+            transition_dim=transition_dim,
+            alpha=self.per_alpha,
+            beta=self.per_beta,
+            beta_increment=self.per_beta_increment
+        )
+        
+        print(f"📊 优先级经验回放（PER）配置:")
+        print(f"  - 容量: {self.memory_capacity}")
+        print(f"  - Alpha: {self.per_alpha} (优先级指数)")
+        print(f"  - Beta: {self.per_beta} → 1.0 (重要性采样权重)")
+        print(f"  - 内存优化: float32 (节省50%内存)")
+        
+        return memory
     
     def _initialize_noise(self):
         """
@@ -356,16 +377,19 @@ class Trainer:
     
     def _update_agents(self, actors, critics, entropies, memory):
         """
-        更新智能体网络参数
+        更新智能体网络参数（使用优先级经验回放）
         
         Args:
             actors: Actor列表
             critics: Critic列表
             entropies: Entropy列表
-            memory: 经验回放缓冲区
+            memory: 优先级经验回放缓冲区
         """
-        # 从经验池采样（CPU数据）
-        b_M = memory.sample(self.batch_size)
+        # 从经验池采样（优先级采样 + 重要性采样权重）
+        b_M, weights, indices = memory.sample(self.batch_size)
+        weights = torch.FloatTensor(weights).to(self.device)
+        
+        # 解析批次数据
         b_s = b_M[:, :self.state_dim * self.n_agents]
         b_a = b_M[:, self.state_dim * self.n_agents : 
                      self.state_dim * self.n_agents + self.action_dim * self.n_agents]
@@ -379,6 +403,9 @@ class Trainer:
         b_r = torch.FloatTensor(b_r).to(self.device)
         b_s_ = torch.FloatTensor(b_s_).to(self.device)
         
+        # 存储TD-error用于更新优先级
+        td_errors = []
+        
         # 更新每个智能体
         for i in range(self.n_agents):
             # 计算目标 Q 值
@@ -388,14 +415,27 @@ class Trainer:
             target_q1, target_q2 = critics[i].get_target_q_value(b_s_, new_action)
             target_q = b_r[:, i:(i + 1)] + self.gamma * (
                 torch.min(target_q1, target_q2) - 
-                entropies[i].alpha * log_prob_.sum(dim=-1, keepdim=True)
+                entropies[i].alpha * log_prob_  # log_prob_ 已经求和过了
             )
             
-            # 更新 Critic
+            # 更新 Critic（应用重要性采样权重）
             current_q1, current_q2 = critics[i].get_q_value(
                 b_s, b_a[:, self.action_dim * i : self.action_dim * (i + 1)]
             )
-            critics[i].update(current_q1, current_q2, target_q.detach())
+            
+            # 计算TD-error（用于更新优先级）
+            td_error = torch.abs(current_q1 - target_q.detach())
+            td_errors.append(td_error)
+            
+            # Critic loss 使用IS权重
+            weighted_loss_q1 = (weights * (current_q1 - target_q.detach()) ** 2).mean()
+            weighted_loss_q2 = (weights * (current_q2 - target_q.detach()) ** 2).mean()
+            critic_loss = weighted_loss_q1 + weighted_loss_q2
+            
+            critics[i].optimizer.zero_grad()
+            critic_loss.backward()
+            torch.nn.utils.clip_grad_norm_(critics[i].critic_net.parameters(), max_norm=1.0)
+            critics[i].optimizer.step()
             
             # 更新 Actor
             a, log_prob = actors[i].evaluate(
@@ -403,17 +443,21 @@ class Trainer:
             )
             q1, q2 = critics[i].get_q_value(b_s, a)
             q = torch.min(q1, q2)
-            actor_loss = (entropies[i].alpha * log_prob.sum(dim=-1, keepdim=True) - q).mean()
+            actor_loss = (entropies[i].alpha * log_prob - q).mean()  # log_prob 已经求和过了
             actors[i].update(actor_loss)
             
             # 更新 Entropy
             alpha_loss = -(entropies[i].log_alpha.exp() * (
-                log_prob.sum(dim=-1, keepdim=True) + entropies[i].target_entropy
+                log_prob + entropies[i].target_entropy  # log_prob 已经求和过了
             ).detach()).mean()
             entropies[i].update(alpha_loss)
             
             # 软更新目标网络
             critics[i].soft_update()
+        
+        # 更新优先级（使用第一个智能体的TD-error）
+        mean_td_error = td_errors[0].cpu().detach().numpy()
+        memory.update_priorities(indices, mean_td_error)
     
     def _save_models(self, actors, episode):
         """
@@ -640,8 +684,8 @@ class Trainer:
                     memory.store(observation.flatten(), action.flatten(), 
                                reward.flatten(), observation_.flatten())
                     
-                    # 学习更新
-                    if memory.counter > self.memory_capacity:
+                    # 学习更新（只要有足够样本就开始训练，不需要等待缓冲区满）
+                    if memory.is_ready(self.batch_size):
                         self._update_agents(actors, critics, entropies, memory)
                     
                     # 更新状态
