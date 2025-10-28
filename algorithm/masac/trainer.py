@@ -14,7 +14,6 @@ from datetime import datetime
 from utils import set_global_seed, get_episode_seed, print_seed_info, get_project_root, load_config, set_env_vars
 from .agent import Actor, Critic, Entropy
 from .buffer import Memory
-from .noise import Ornstein_Uhlenbeck_Noise
 from rl_env.path_env import RlGame
 
 
@@ -331,46 +330,27 @@ class Trainer:
         
         return memory
     
-    def _initialize_noise(self):
+    def _collect_experience(self, actors, observation):
         """
-        初始化 OU 噪声生成器
+        采集经验（选择动作）
         
-        Returns:
-            noise: OU噪声生成器
-        """
-        return Ornstein_Uhlenbeck_Noise(
-            mean=np.zeros((self.n_agents, self.action_dim)),
-            sigma=0.1,
-            theta=0.1,
-            dt=1e-2
-        )
-    
-    def _collect_experience(self, actors, observation, episode, ou_noise):
-        """
-        采集经验（选择动作并添加噪声）
+        SAC 使用随机策略，不需要额外的探索噪声
+        Actor 输出的高斯分布采样本身就提供了探索
         
         Args:
             actors: Actor列表
             observation: 当前观测
-            episode: 当前轮数
-            ou_noise: OU噪声生成器
             
         Returns:
             action: 执行的动作
         """
         action = np.zeros((self.n_agents, self.action_dim))
         
-        # 选择动作
+        # 选择动作（已经包含随机探索）
         for i in range(self.n_agents):
             action[i] = actors[i].choose_action(observation[i])
         
-        # 前20轮添加 OU 噪声进行探索
-        if episode <= 20:
-            noise = ou_noise()
-        else:
-            noise = 0
-        
-        action = action + noise
+        # SAC 不需要额外噪声，策略本身是随机的
         action = np.clip(action, -self.max_action, self.max_action)
         
         return action
@@ -636,7 +616,6 @@ class Trainer:
             # 初始化组件
             actors, critics, entropies = self._initialize_agents()
             memory = self._initialize_memory()
-            ou_noise = self._initialize_noise()
             
             # 打印表头
             print("\n" + "="*80)
@@ -669,8 +648,8 @@ class Trainer:
                 reward_followers = [0.0] * self.n_follower
                 
                 for timestep in range(ep_len):
-                    # 采集经验
-                    action = self._collect_experience(actors, observation, episode, ou_noise)
+                    # 采集经验（SAC 随机策略，无需额外噪声）
+                    action = self._collect_experience(actors, observation)
                     
                     # 环境交互（符合 Gymnasium 标准）
                     observation_, reward, terminated, truncated, info = self.env.step(action)
