@@ -9,6 +9,7 @@ import pygame
 from assignment.components import player
 from assignment import tools
 from assignment.components import info
+from utils import get_resource_path
 class RlGame(gym.Env):
     def __init__(self, n,m,render=False):
         self.hero_num = n
@@ -29,9 +30,9 @@ class RlGame(gym.Env):
 
             pygame.display.set_caption("基于深度强化学习的空战场景无人机路径规划软件")
 
-            self.GRAPHICS = tools.load_graphics('/home/zp/vscode_projects/path planning/assignment/source/image')
+            self.GRAPHICS = tools.load_graphics(get_resource_path('image'))
 
-            self.SOUND = tools.load_sound('/home/zp/vscode_projects/path planning/assignment/source/music')
+            self.SOUND = tools.load_sound(get_resource_path('music'))
             self.clock = pygame.time.Clock()
             self.mouse_pos=(100,100)
             pygame.time.set_timer(C.CREATE_ENEMY_EVENT, C.ENEMY_MAKE_TIME)
