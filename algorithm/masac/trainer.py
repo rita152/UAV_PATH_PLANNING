@@ -386,12 +386,26 @@ class Trainer:
             memory = self._initialize_memory()
             ou_noise = self._initialize_noise()
             
+            # 打印表头
+            print("\n" + "="*80)
+            header_parts = ["Episode"]
+            for i in range(self.n_leader):
+                header_parts.append(f"Leader{i}")
+            for j in range(self.n_follower):
+                header_parts.append(f"Follower{j}")
+            header_parts.append("Steps")
+            header_parts.append("Status")
+            print(" | ".join([f"{part:^12}" for part in header_parts]))
+            print("="*80)
+            
             # 训练循环
             for episode in range(ep_max):
                 observation = self.env.reset()
                 reward_total = 0
-                reward_total0 = 0
-                reward_total1 = 0
+                
+                # 为每个智能体单独统计奖励
+                reward_leaders = [0.0] * self.n_leader
+                reward_followers = [0.0] * self.n_follower
                 
                 for timestep in range(ep_len):
                     # 采集经验
@@ -411,8 +425,12 @@ class Trainer:
                     # 更新状态
                     observation = observation_
                     reward_total += reward.mean()
-                    reward_total0 += float(reward[0])
-                    reward_total1 += float(reward[1])
+                    
+                    # 分别累积每个智能体的奖励
+                    for i in range(self.n_leader):
+                        reward_leaders[i] += float(reward[i])
+                    for j in range(self.n_follower):
+                        reward_followers[j] += float(reward[self.n_leader + j])
                     
                     # 渲染
                     if render:
@@ -422,11 +440,41 @@ class Trainer:
                     if done:
                         break
                 
-                # 记录统计
-                print("Ep: {} rewards: {}".format(episode, reward_total))
+                # 判断终止状态
+                if done:
+                    if win:
+                        status = "✅ Success"
+                        status_color = "\033[92m"  # 绿色
+                    else:
+                        status = "❌ Failure"
+                        status_color = "\033[91m"  # 红色
+                else:
+                    status = "⏱️  Timeout"
+                    status_color = "\033[93m"  # 黄色
+                reset_color = "\033[0m"
+                
+                # 格式化输出
+                output_parts = [f"{episode:^12d}"]
+                
+                # Leader奖励
+                for i in range(self.n_leader):
+                    output_parts.append(f"{reward_leaders[i]:^12.2f}")
+                
+                # Follower奖励
+                for j in range(self.n_follower):
+                    output_parts.append(f"{reward_followers[j]:^12.2f}")
+                
+                # 步数和状态
+                output_parts.append(f"{timestep+1:^12d}")
+                output_parts.append(f"{status_color}{status:^12}{reset_color}")
+                
+                print(" | ".join(output_parts))
+                
+                # 记录统计（保持向后兼容）
                 all_ep_r[k].append(reward_total)
-                all_ep_r0[k].append(reward_total0)
-                all_ep_r1[k].append(reward_total1)
+                all_ep_r0[k].append(reward_leaders[0])
+                if self.n_follower > 0:
+                    all_ep_r1[k].append(reward_followers[0])
                 
                 # 保存模型
                 self._save_models(actors, episode)

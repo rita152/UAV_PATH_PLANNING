@@ -230,7 +230,6 @@ class RlGame(gym.Env):
                 leader.win = False
                 self.done = True
                 o_flag = 1
-                print('gg')
             elif dis_1_obs[i] < 40 and not leader.dead:
                 obstacle_r[i] = -2
                 o_flag = 1
@@ -241,7 +240,6 @@ class RlGame(gym.Env):
                 leader.win = True
                 leader.die()
                 self.done = True
-                print('aa')
             elif not leader.dead:
                 goal_r[i] = -0.001 * dis_1_goal[i]
             
