@@ -32,9 +32,9 @@ class BackgroundSprite(GameSprite):
         if self.rect.y>=C.SCREEN_H:
             self.rect.y=-self.rect.height
 
-class Enemy(GameSprite):
+class Follower(GameSprite):
     def __init__(self,image=None):
-        super(Enemy, self).__init__(image_name=image,speed=random.randint(20,30),size=(20,20))
+        super(Follower, self).__init__(image_name=image,speed=random.randint(20,30),size=(20,20))
         #自方的初始位置
         self.z=1000
         self.rect.center=random.randint(400,500),random.randint(500,550)
@@ -75,14 +75,14 @@ class Enemy(GameSprite):
             self.posy -= self.speed*math.sin(self.theta)*dt
             if Render:
                 self.rotate()
-        if self.posx<=C.ENEMY_AREA_X:
-            self.posx=C.ENEMY_AREA_X
-        elif self.posx>=(C.ENEMY_AREA_X+C.ENEMY_AREA_WITH):
-            self.posx =C.ENEMY_AREA_X+C.ENEMY_AREA_WITH
-        if self.posy>=(C.ENEMY_AREA_Y+C.ENEMY_AREA_HEIGHT):
-            self.posy = C.ENEMY_AREA_Y+C.ENEMY_AREA_HEIGHT
-        elif self.posy<=C.ENEMY_AREA_Y:
-            self.posy = C.ENEMY_AREA_Y
+        if self.posx<=C.FLIGHT_AREA_X:
+            self.posx=C.FLIGHT_AREA_X
+        elif self.posx>=(C.FLIGHT_AREA_X+C.FLIGHT_AREA_WIDTH):
+            self.posx =C.FLIGHT_AREA_X+C.FLIGHT_AREA_WIDTH
+        if self.posy>=(C.FLIGHT_AREA_Y+C.FLIGHT_AREA_HEIGHT):
+            self.posy = C.FLIGHT_AREA_Y+C.FLIGHT_AREA_HEIGHT
+        elif self.posy<=C.FLIGHT_AREA_Y:
+            self.posy = C.FLIGHT_AREA_Y
         self.rect.center = self.posx, self.posy
     def rotate(self):
         self.image = pygame.transform.rotozoom(self.orig_image, self.theta*57.3, 1)
@@ -105,9 +105,9 @@ class Enemy(GameSprite):
         self.kill()
 
 
-class Hero(GameSprite):
+class Leader(GameSprite):
     def __init__(self,image=None):
-        super(Hero, self).__init__(image_name=image,speed=random.randint(10,20),size=(20,20))
+        super(Leader, self).__init__(image_name=image,speed=random.randint(10,20),size=(20,20))
         #自方的初始位置
         self.z=1000
         self.rect.center=random.randint(300,400),random.randint(500,550)
@@ -148,14 +148,14 @@ class Hero(GameSprite):
             self.posy -= self.speed*math.sin(self.theta)*dt
             if Render:
                 self.rotate()
-        if self.posx<=C.ENEMY_AREA_X:
-            self.posx=C.ENEMY_AREA_X
-        elif self.posx>=(C.ENEMY_AREA_X+C.ENEMY_AREA_WITH):
-            self.posx =C.ENEMY_AREA_X+C.ENEMY_AREA_WITH
-        if self.posy>=(C.ENEMY_AREA_Y+C.ENEMY_AREA_HEIGHT):
-            self.posy = C.ENEMY_AREA_Y+C.ENEMY_AREA_HEIGHT
-        elif self.posy<=C.ENEMY_AREA_Y:
-            self.posy = C.ENEMY_AREA_Y
+        if self.posx<=C.FLIGHT_AREA_X:
+            self.posx=C.FLIGHT_AREA_X
+        elif self.posx>=(C.FLIGHT_AREA_X+C.FLIGHT_AREA_WIDTH):
+            self.posx =C.FLIGHT_AREA_X+C.FLIGHT_AREA_WIDTH
+        if self.posy>=(C.FLIGHT_AREA_Y+C.FLIGHT_AREA_HEIGHT):
+            self.posy = C.FLIGHT_AREA_Y+C.FLIGHT_AREA_HEIGHT
+        elif self.posy<=C.FLIGHT_AREA_Y:
+            self.posy = C.FLIGHT_AREA_Y
         self.rect.center = self.posx, self.posy
     def rotate(self):
         self.image = pygame.transform.rotozoom(self.orig_image, self.theta*57.3, 1)

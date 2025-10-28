@@ -171,7 +171,7 @@ def get_resource_path(resource_type: str, resource_name: str = '') -> str:
         
     Example:
         >>> image_dir = get_resource_path('image')
-        >>> hero_img = get_resource_path('image', 'hero.png')
+        >>> leader_img = get_resource_path('image', 'leader.png')
     """
     resource_path = os.path.join('assignment', 'source', resource_type)
     abs_path = get_abs_path(resource_path)

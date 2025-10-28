@@ -6,11 +6,14 @@
 
 本项目实现了一个基于Soft Actor-Critic (SAC)算法的无人机路径规划系统，支持多智能体协同、动态避障和目标追踪。系统使用PyTorch构建深度神经网络，通过强化学习训练智能体在复杂环境中完成路径规划任务。
 
+采用 **Leader-Follower 协同控制架构**，Leader 负责路径规划和目标导航，Follower 负责跟随 Leader 并保持编队。
+
 ### 主要特性
 
-- ✅ **多智能体协同**：支持Leader-Follower编队控制
+- ✅ **Leader-Follower 协同**：支持 Leader-Follower 编队控制
 - ✅ **动态避障**：实时检测并规避障碍物
-- ✅ **目标导航**：引导无人机到达指定目标点
+- ✅ **目标导航**：引导 Leader 到达指定目标点
+- ✅ **编队保持**：Follower 自动跟随 Leader 保持队形
 - ✅ **可视化仿真**：基于Pygame的实时可视化
 - ✅ **自动训练**：支持离线训练和在线测试
 - ✅ **模型保存**：自动保存训练好的神经网络模型
@@ -70,8 +73,8 @@ conda activate UAV_PATH_PLANNING
 ```python
 Switch = 0  # 0为训练模式
 RENDER = False  # 训练时建议关闭渲染
-N_Agent = 1  # 智能体数量
-M_Enemy = 1  # 跟随者数量
+N_LEADER = 1  # Leader数量
+M_FOLLOWER = 1  # Follower数量
 ```
 
 运行训练：
@@ -163,8 +166,8 @@ UAV_PATH_PLANNING/
 
 | 参数名 | 默认值 | 说明 |
 |--------|--------|------|
-| `N_Agent` | 1 | Leader数量 |
-| `M_Enemy` | 1 | Follower数量 |
+| `N_LEADER` | 1 | Leader数量 |
+| `M_FOLLOWER` | 1 | Follower数量 |
 | `state_number` | 7 | 状态维度 |
 | `action_number` | 2 | 动作维度 |
 
@@ -219,11 +222,12 @@ SAC是一种基于最大熵的强化学习算法，具有以下特点：
 
 启用可视化后（`RENDER=True`），界面显示：
 
-- 蓝色：Leader无人机
-- 绿色：Follower无人机
-- 黑色圆形：障碍物（碰撞区域）
-- 红色圆形：目标点
-- 彩色轨迹线：无人机飞行轨迹
+- **蓝色飞机**：Leader无人机（负责路径规划和目标导航）
+- **绿色飞机**：Follower无人机（跟随Leader保持编队）
+- **黑色圆形**：障碍物（碰撞区域）
+- **红色圆形**：目标点
+- **蓝色轨迹线**：Leader飞行轨迹
+- **绿色轨迹线**：Follower飞行轨迹
 
 ## 🤖 Cursor 自定义命令
 
@@ -371,7 +375,7 @@ print(DATA_DIR)      # saved_models/data/
 
 ### 常见问题
 
-1. **M_Enemy必须为1的错误**
+1. **M_FOLLOWER必须为1的错误**
    - 当前版本仅支持1个Follower
    - 需要修改 `path_env.py` 中的相关代码以支持多个Follower
 
@@ -389,13 +393,14 @@ print(DATA_DIR)      # saved_models/data/
 
 ### 最近更新 (2025-10-28)
 
+✅ **重构命名体系**：Hero/Enemy → Leader/Follower，更符合学术规范  
 ✅ **新增路径管理工具**：`utils/path_utils.py` 实现跨平台路径管理  
 ✅ **升级到 Gymnasium**：替换已过时的 Gym 库  
 ✅ 修复 MSELoss 维度不匹配问题（SAC 算法 bug）  
 ✅ 移除所有硬编码绝对路径，使用智能路径工具  
 ✅ 自动创建 `saved_models/` 目录保存模型  
 ✅ 支持项目在任何设备直接运行，无需修改路径  
-✅ 优化代码注释和格式
+✅ 代码更加规范，易于论文发表和分享
 
 ### 迁移说明
 

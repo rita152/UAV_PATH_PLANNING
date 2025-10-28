@@ -13,12 +13,12 @@ shoplistfile = get_data_path('MASAC_new1.pkl')
 shoplistfile_test = get_data_path('MASAC_d_test2.pkl')
 shoplistfile_test1 = get_data_path('MASAC_compare.pkl')
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
-N_Agent=1
-M_Enemy=1
+N_LEADER=1
+M_FOLLOWER=1
 RENDER=False
 TRAIN_NUM = 1
 TEST_EPIOSDE=100
-env = RlGame(n=N_Agent,m=M_Enemy,render=RENDER).unwrapped
+env = RlGame(n=N_LEADER,m=M_FOLLOWER,render=RENDER).unwrapped
 state_number=7
 action_number=env.action_space.shape[0]
 max_action = env.action_space.high[0]
@@ -174,7 +174,7 @@ class Entroy():
 
 class Critic():
     def __init__(self):
-        self.critic_v,self.target_critic_v=CriticNet(state_number*(N_Agent+M_Enemy),action_number),CriticNet(state_number*(N_Agent+M_Enemy),action_number)#改网络输入状态，生成一个Q值
+        self.critic_v,self.target_critic_v=CriticNet(state_number*(N_LEADER+M_FOLLOWER),action_number),CriticNet(state_number*(N_LEADER+M_FOLLOWER),action_number)#改网络输入状态，生成一个Q值
         self.target_critic_v.load_state_dict(self.critic_v.state_dict())
         self.optimizer = torch.optim.Adam(self.critic_v.parameters(), lr=value_lr,eps=1e-5)
         self.lossfunc = nn.MSELoss()
@@ -198,9 +198,9 @@ def main():
 def run(env):
     if Switch==0:
         try:
-            assert M_Enemy == 1
+            assert M_FOLLOWER == 1
         except:
-            print('程序终止，被逮到~嘿嘿，哥们儿预判到你会犯错，这段程序中变量\'M_Enemy\'的值必须为1，请把它的值改为1。\n' 
+            print('程序终止，被逮到~嘿嘿，哥们儿预判到你会犯错，这段程序中变量\'M_FOLLOWER\'的值必须为1，请把它的值改为1。\n' 
                   '改为1之后程序一定会报错，这是因为组数越界，更改path_env.py文件中的跟随者无人机初始化个数；删除多余的\n'
                   '求距离函数，即变量dis_1_agent_0_to_3等，以及提到变量dis_1_agent_0_to_3等的地方；删除画无人机轨迹的\n'
                   '函数；删除step函数的最后一个返回值dis_1_agent_0_to_1；将player.py文件中的变量dt改为1；即可开始训练！\n'
@@ -211,22 +211,22 @@ def run(env):
             all_ep_r0 = [[] for i in range(TRAIN_NUM)]
             all_ep_r1 = [[] for i in range(TRAIN_NUM)]
             for k in range(TRAIN_NUM):
-                actors = [None for _ in range(N_Agent+M_Enemy)]
-                critics = [None for _ in range(N_Agent+M_Enemy)]
-                entroys = [None for _ in range(N_Agent+M_Enemy)]
-                for i in range(N_Agent+M_Enemy):
+                actors = [None for _ in range(N_LEADER+M_FOLLOWER)]
+                critics = [None for _ in range(N_LEADER+M_FOLLOWER)]
+                entroys = [None for _ in range(N_LEADER+M_FOLLOWER)]
+                for i in range(N_LEADER+M_FOLLOWER):
                     actors[i] = Actor()
                     critics[i] = Critic()
                     entroys[i] = Entroy()
-                M = Memory(MemoryCapacity, 2 * state_number*(N_Agent+M_Enemy) + action_number*(N_Agent+M_Enemy) + 1*(N_Agent+M_Enemy))
-                ou_noise = Ornstein_Uhlenbeck_Noise(mu=np.zeros(((N_Agent+M_Enemy), action_number)))
-                action=np.zeros(((N_Agent+M_Enemy), action_number))
-                # aaa = np.zeros((N_Agent, state_number))
+                M = Memory(MemoryCapacity, 2 * state_number*(N_LEADER+M_FOLLOWER) + action_number*(N_LEADER+M_FOLLOWER) + 1*(N_LEADER+M_FOLLOWER))
+                ou_noise = Ornstein_Uhlenbeck_Noise(mu=np.zeros(((N_LEADER+M_FOLLOWER), action_number)))
+                action=np.zeros(((N_LEADER+M_FOLLOWER), action_number))
+                # aaa = np.zeros((N_LEADER, state_number))
                 for episode in range(EP_MAX):
                     observation = env.reset()  # 环境重置
                     reward_totle,reward_totle0,reward_totle1 = 0,0,0
                     for timestep in range(EP_LEN):
-                        for i in range(N_Agent+M_Enemy):
+                        for i in range(N_LEADER+M_FOLLOWER):
                             action[i] = actors[i].choose_action(observation[i])
                         if episode <= 20:
                             noise = ou_noise()
@@ -240,15 +240,15 @@ def run(env):
                         # 有的2000个存储数据就开始学习
                         if M.memory_counter > MemoryCapacity:
                             b_M = M.sample(BATCH)
-                            b_s = b_M[:, :state_number*(N_Agent+M_Enemy)]
-                            b_a = b_M[:, state_number*(N_Agent+M_Enemy): state_number*(N_Agent+M_Enemy) + action_number*(N_Agent+M_Enemy)]
-                            b_r = b_M[:, -state_number*(N_Agent+M_Enemy) - 1*(N_Agent+M_Enemy): -state_number*(N_Agent+M_Enemy)]
-                            b_s_ = b_M[:, -state_number*(N_Agent+M_Enemy):]
+                            b_s = b_M[:, :state_number*(N_LEADER+M_FOLLOWER)]
+                            b_a = b_M[:, state_number*(N_LEADER+M_FOLLOWER): state_number*(N_LEADER+M_FOLLOWER) + action_number*(N_LEADER+M_FOLLOWER)]
+                            b_r = b_M[:, -state_number*(N_LEADER+M_FOLLOWER) - 1*(N_LEADER+M_FOLLOWER): -state_number*(N_LEADER+M_FOLLOWER)]
+                            b_s_ = b_M[:, -state_number*(N_LEADER+M_FOLLOWER):]
                             b_s = torch.FloatTensor(b_s)
                             b_a = torch.FloatTensor(b_a)
                             b_r = torch.FloatTensor(b_r)
                             b_s_ = torch.FloatTensor(b_s_)
-                            for i in range(N_Agent+M_Enemy):
+                            for i in range(N_LEADER+M_FOLLOWER):
                                 new_action, log_prob_ = actors[i].evaluate(b_s_[:, state_number*i:state_number*(i+1)])
                                 target_q1, target_q2 = critics[i].target_critic_v(b_s_, new_action)
                                 target_q = b_r[:, i:(i+1)] + GAMMA * (torch.min(target_q1, target_q2) - entroys[i].alpha * log_prob_.sum(dim=-1, keepdim=True))
@@ -330,7 +330,7 @@ def run(env):
         bb = Actor()
         checkpoint_bb = torch.load(get_model_path('Path_SAC_actor_F1.pth'))
         bb.action_net.load_state_dict(checkpoint_bb['net'])
-        action = np.zeros((N_Agent+M_Enemy, action_number))
+        action = np.zeros((N_LEADER+M_FOLLOWER, action_number))
         win_times = 0
         average_FKR=0
         average_timestep=0
@@ -344,9 +344,9 @@ def run(env):
             integral_U=0
             v,v1,Dis=[],[],[]
             for timestep in range(EP_LEN):
-                for i in range(N_Agent):
+                for i in range(N_LEADER):
                     action[i] = aa.choose_action(state[i])
-                for i in range(M_Enemy):
+                for i in range(M_FOLLOWER):
                     action[i+1] = bb.choose_action(state[i+1])
                 new_state, reward,done,win,team_counter,dis = env.step(action)  # 执行动作
                 if win:
