@@ -67,12 +67,12 @@ class RlGame(gym.Env):
         self.view = self.SCREEN.get_rect()
 
     def set_leader_image(self):
-        self.leader = self.__dict__
+        self.leader_dict = self.__dict__
         self.leader_group = pygame.sprite.Group()
         self.leader_image = self.GRAPHICS['fighter-blue']
-        for i in range(self.leader_num):
-            self.leader['leader'+str(i)]=player.Leader(image=self.leader_image)
-            self.leader_group.add(self.leader['leader'+str(i)])
+        # 只有1个leader，直接使用'leader'作为键名
+        self.leader_dict['leader'] = player.Leader(image=self.leader_image)
+        self.leader_group.add(self.leader)
 
     def set_follower_image(self):
         self.follower = self.__dict__
@@ -83,11 +83,11 @@ class RlGame(gym.Env):
             self.follower_group.add(self.follower['follower'+str(i)])
 
     def set_leader(self):
-        self.leader = self.__dict__
+        self.leader_dict = self.__dict__
         self.leader_group = pygame.sprite.Group()
-        for i in range(self.leader_num):
-            self.leader['leader'+str(i)]=player.Leader()
-            self.leader_group.add(self.leader['leader'+str(i)])
+        # 只有1个leader，直接使用'leader'作为键名
+        self.leader_dict['leader'] = player.Leader()
+        self.leader_group.add(self.leader)
 
     def set_follower(self):
         self.follower = self.__dict__
@@ -146,19 +146,17 @@ class RlGame(gym.Env):
         # 动态构建状态数组
         states = []
         
-        # Leader状态
-        for i in range(self.leader_num):
-            leader = self.leader[f'leader{i}']
-            state = [
-                leader.init_x / 1000,
-                leader.init_y / 1000,
-                leader.speed / 30,
-                leader.theta * 57.3 / 360,
-                self.goal0.init_x / 1000,
-                self.goal0.init_y / 1000,
-                0
-            ]
-            states.append(state)
+        # Leader状态（只有1个leader）
+        state = [
+            self.leader.init_x / 1000,
+            self.leader.init_y / 1000,
+            self.leader.speed / 30,
+            self.leader.theta * 57.3 / 360,
+            self.goal0.init_x / 1000,
+            self.goal0.init_y / 1000,
+            0
+        ]
+        states.append(state)
         
         # Follower状态
         for i in range(self.follower_num):
@@ -168,9 +166,9 @@ class RlGame(gym.Env):
                 follower.init_y / 1000,
                 follower.speed / 30,
                 follower.theta * 57.3 / 360,
-                self.leader0.init_x / 1000,
-                self.leader0.init_y / 1000,
-                self.leader0.speed / 30
+                self.leader.init_x / 1000,
+                self.leader.init_y / 1000,
+                self.leader.speed / 30
             ]
             states.append(state)
         
@@ -195,90 +193,89 @@ class RlGame(gym.Env):
         leader_follower_dist = np.zeros(self.follower_num)
         for j in range(self.follower_num):
             leader_follower_dist[j] = math.hypot(
-                self.leader0.posx - self.follower[f'follower{j}'].posx,
-                self.leader0.posy - self.follower[f'follower{j}'].posy
+                self.leader.posx - self.follower[f'follower{j}'].posx,
+                self.leader.posy - self.follower[f'follower{j}'].posy
             )
         
-        # 更新所有Leader
-        for i in range(self.leader_num):
-            leader = self.leader[f'leader{i}']
+        # 更新Leader（只有1个leader）
+        i = 0  # leader索引
+        
+        # 障碍物距离
+        dis_1_obs[i] = math.hypot(
+            self.leader.posx - self.obstacle0.init_x,
+            self.leader.posy - self.obstacle0.init_y
+        )
+        
+        # 目标距离
+        dis_1_goal[i] = math.hypot(
+            self.leader.posx - self.goal0.init_x,
+            self.leader.posy - self.goal0.init_y
+        )
+        
+        # 边界奖励
+        if (self.leader.posx <= C.FLIGHT_AREA_X + 50 or 
+            self.leader.posx >= C.FLIGHT_AREA_WIDTH or
+            self.leader.posy >= C.FLIGHT_AREA_HEIGHT or
+            self.leader.posy <= C.FLIGHT_AREA_Y + 50):
+            edge_r[i] = -1
+        
+        # 避障奖励
+        o_flag = 0
+        if dis_1_obs[i] < 20 and not self.leader.dead:
+            obstacle_r[i] = -500
+            self.leader.die()
+            self.leader.win = False
+            self.done = True
+            o_flag = 1
+        elif dis_1_obs[i] < 40 and not self.leader.dead:
+            obstacle_r[i] = -2
+            o_flag = 1
+        
+        # 目标奖励
+        if dis_1_goal[i] < 40 and not self.leader.dead:
+            goal_r[i] = 1000.0
+            self.leader.win = True
+            self.leader.die()
+            self.done = True
+        elif not self.leader.dead:
+            goal_r[i] = -0.001 * dis_1_goal[i]
+        
+        # 编队奖励（考虑所有Follower）
+        follow_r_leader = 0
+        speed_r_leader = 0
+        formation_count = 0
+        
+        for j in range(self.follower_num):
+            dist = leader_follower_dist[j]
+            follower = self.follower[f'follower{j}']
             
-            # 障碍物距离
-            dis_1_obs[i] = math.hypot(
-                leader.posx - self.obstacle0.init_x,
-                leader.posy - self.obstacle0.init_y
-            )
-            
-            # 目标距离
-            dis_1_goal[i] = math.hypot(
-                leader.posx - self.goal0.init_x,
-                leader.posy - self.goal0.init_y
-            )
-            
-            # 边界奖励
-            if (leader.posx <= C.FLIGHT_AREA_X + 50 or 
-                leader.posx >= C.FLIGHT_AREA_WIDTH or
-                leader.posy >= C.FLIGHT_AREA_HEIGHT or
-                leader.posy <= C.FLIGHT_AREA_Y + 50):
-                edge_r[i] = -1
-            
-            # 避障奖励
-            o_flag = 0
-            if dis_1_obs[i] < 20 and not leader.dead:
-                obstacle_r[i] = -500
-                leader.die()
-                leader.win = False
-                self.done = True
-                o_flag = 1
-            elif dis_1_obs[i] < 40 and not leader.dead:
-                obstacle_r[i] = -2
-                o_flag = 1
-            
-            # 目标奖励
-            if dis_1_goal[i] < 40 and not leader.dead:
-                goal_r[i] = 1000.0
-                leader.win = True
-                leader.die()
-                self.done = True
-            elif not leader.dead:
-                goal_r[i] = -0.001 * dis_1_goal[i]
-            
-            # 编队奖励（考虑所有Follower）
-            follow_r_leader = 0
-            speed_r_leader = 0
-            formation_count = 0
-            
-            for j in range(self.follower_num):
-                dist = leader_follower_dist[j]
-                follower = self.follower[f'follower{j}']
-                
-                if 0 < dist < 50:
-                    formation_count += 1
-                    if abs(leader.speed - follower.speed) < 1:
-                        speed_r_leader += 1
-                else:
-                    follow_r_leader += -0.001 * dist
-            
-            # 如果所有Follower都在编队中，增加计数器
-            if formation_count == self.follower_num:
-                self.team_counter += 1
-            
-            # 总奖励
-            r[i] = edge_r[i] + obstacle_r[i] + goal_r[i] + speed_r_leader + follow_r_leader
-            
-            # 状态更新
-            self.leader_state[i] = [
-                leader.posx / 1000,
-                leader.posy / 1000,
-                leader.speed / 30,
-                leader.theta * 57.3 / 360,
-                self.goal0.init_x / 1000,
-                self.goal0.init_y / 1000,
-                o_flag
-            ]
-            
-            # 执行动作
-            leader.update(action[i], self.Render)
+            if 0 < dist < 50:
+                formation_count += 1
+                if abs(self.leader.speed - follower.speed) < 1:
+                    speed_r_leader += 1
+            else:
+                follow_r_leader += -0.001 * dist
+        
+        # 如果所有Follower都在编队中，增加计数器
+        if formation_count == self.follower_num:
+            self.team_counter += 1
+        
+        # 总奖励
+        r[i] = edge_r[i] + obstacle_r[i] + goal_r[i] + speed_r_leader + follow_r_leader
+        
+        # 状态更新
+        self.leader_state[i] = [
+            self.leader.posx / 1000,
+            self.leader.posy / 1000,
+            self.leader.speed / 30,
+            self.leader.theta * 57.3 / 360,
+            self.goal0.init_x / 1000,
+            self.goal0.init_y / 1000,
+            o_flag
+        ]
+        
+        # 执行动作
+        self.leader.update(action[i], self.Render)
         
         # 更新所有Follower
         for j in range(self.follower_num):
@@ -314,7 +311,7 @@ class RlGame(gym.Env):
             speed_r_f = 0
             
             if 0 < dist_to_leader < 50 and dis_1_goal[0] < dis_1_goal[i]:
-                if abs(self.leader0.speed - follower.speed) < 1:
+                if abs(self.leader.speed - follower.speed) < 1:
                     speed_r_f = 1
                 follow_r[j] = 0
             else:
@@ -329,9 +326,9 @@ class RlGame(gym.Env):
                 follower.posy / 1000,
                 follower.speed / 30,
                 follower.theta * 57.3 / 360,
-                self.leader0.posx / 1000,
-                self.leader0.posy / 1000,
-                self.leader0.speed / 30
+                self.leader.posx / 1000,
+                self.leader.posy / 1000,
+                self.leader.speed / 30
             ]
             
             # 执行动作
@@ -339,7 +336,7 @@ class RlGame(gym.Env):
         
         leader_state = copy.deepcopy(self.leader_state)
         done = copy.deepcopy(self.done)
-        return leader_state,r,done,self.leader['leader0'].win,self.team_counter
+        return leader_state,r,done,self.leader.win,self.team_counter
     def render(self):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
