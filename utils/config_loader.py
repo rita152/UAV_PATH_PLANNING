@@ -81,6 +81,7 @@ def get_train_params(config: Dict[str, Any]) -> Dict[str, Any]:
     params['gamma'] = train_config.get('gamma', 0.9)
     params['batch_size'] = train_config.get('batch_size', 128)
     params['memory_capacity'] = train_config.get('memory_capacity', 20000)
+    params['device'] = train_config.get('device', 'auto')
     params['data_save_name'] = train_config.get('data_save_name', 'MASAC_new1.pkl')
     
     # 网络参数
@@ -119,6 +120,10 @@ def get_test_params(config: Dict[str, Any]) -> Dict[str, Any]:
     params['render'] = test_config.get('render', False)
     params['leader_model_path'] = test_config.get('leader_model_path', None)
     params['follower_model_path'] = test_config.get('follower_model_path', None)
+    
+    # 设备配置（测试也可能需要GPU）
+    train_config = config.get('training', {})
+    params['device'] = train_config.get('device', 'auto')
     
     # 网络参数
     net_config = config.get('network', {})

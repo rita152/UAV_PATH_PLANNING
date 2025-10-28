@@ -22,6 +22,9 @@ training:
   batch_size: 128          # 批次大小
   memory_capacity: 20000   # 经验池容量
   
+  # 设备配置
+  device: 'auto'           # 'auto', 'cpu', 'cuda', 'cuda:0', 'cuda:1'
+  
   # 数据保存
   data_save_name: 'MASAC_new1.pkl'  # 训练数据保存文件名
 

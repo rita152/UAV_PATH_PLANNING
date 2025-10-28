@@ -60,10 +60,20 @@ class Trainer:
                  tau=1e-2,
                  batch_size=128,
                  memory_capacity=20000,
+                 device='auto',
                  data_save_name='MASAC_new1.pkl'):
         
         # 环境实例
         self.env = env
+        
+        # 设备选择
+        if device == 'auto':
+            self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        else:
+            self.device = torch.device(device)
+        
+        # 打印设备信息
+        self._print_device_info()
         
         # 智能体数量（决定网络结构）
         self.n_leader = n_leader
@@ -91,6 +101,15 @@ class Trainer:
         # 数据保存路径
         self.data_path = get_data_path(data_save_name)
     
+    def _print_device_info(self):
+        """打印设备信息"""
+        if self.device.type == 'cuda':
+            gpu_name = torch.cuda.get_device_name(self.device)
+            gpu_memory = torch.cuda.get_device_properties(self.device).total_memory / 1e9
+            print(f"🚀 使用GPU训练: {gpu_name} ({gpu_memory:.1f}GB)")
+        else:
+            print(f"💻 使用CPU训练")
+    
     def _initialize_agents(self):
         """
         初始化智能体组件（Actor, Critic, Entropy）
@@ -103,31 +122,34 @@ class Trainer:
         entropies = []
         
         for i in range(self.n_agents):
-            # 创建 Actor
+            # 创建 Actor（移到GPU）
             actor = Actor(
                 state_dim=self.state_dim,
                 action_dim=self.action_dim,
                 max_action=self.max_action,
                 min_action=self.min_action,
                 hidden_dim=self.hidden_dim,
-                policy_lr=self.policy_lr
+                policy_lr=self.policy_lr,
+                device=str(self.device)
             )
             actors.append(actor)
             
-            # 创建 Critic
+            # 创建 Critic（移到GPU）
             critic = Critic(
                 state_dim=self.state_dim * self.n_agents,
                 action_dim=self.action_dim,
                 hidden_dim=self.hidden_dim,
                 value_lr=self.value_lr,
-                tau=self.tau
+                tau=self.tau,
+                device=str(self.device)
             )
             critics.append(critic)
             
-            # 创建 Entropy 调节器
+            # 创建 Entropy 调节器（移到GPU）
             entropy = Entropy(
                 target_entropy=-0.1,
-                lr=self.q_lr
+                lr=self.q_lr,
+                device=str(self.device)
             )
             entropies.append(entropy)
         
@@ -199,7 +221,7 @@ class Trainer:
             entropies: Entropy列表
             memory: 经验回放缓冲区
         """
-        # 从经验池采样
+        # 从经验池采样（CPU数据）
         b_M = memory.sample(self.batch_size)
         b_s = b_M[:, :self.state_dim * self.n_agents]
         b_a = b_M[:, self.state_dim * self.n_agents : 
@@ -208,11 +230,11 @@ class Trainer:
                      -self.state_dim * self.n_agents]
         b_s_ = b_M[:, -self.state_dim * self.n_agents:]
         
-        # 转换为 Tensor
-        b_s = torch.FloatTensor(b_s)
-        b_a = torch.FloatTensor(b_a)
-        b_r = torch.FloatTensor(b_r)
-        b_s_ = torch.FloatTensor(b_s_)
+        # 转换为 Tensor 并移到 GPU
+        b_s = torch.FloatTensor(b_s).to(self.device)
+        b_a = torch.FloatTensor(b_a).to(self.device)
+        b_r = torch.FloatTensor(b_r).to(self.device)
+        b_s_ = torch.FloatTensor(b_s_).to(self.device)
         
         # 更新每个智能体
         for i in range(self.n_agents):
@@ -252,26 +274,32 @@ class Trainer:
     
     def _save_models(self, actors, episode):
         """
-        保存模型参数
+        保存模型参数（自动处理GPU/CPU）
         
         Args:
             actors: Actor列表
             episode: 当前轮数
         """
         if episode % 20 == 0 and episode > 200:
-            # 保存 Leader 模型
+            # 保存 Leader 模型（移到CPU后保存，提升兼容性）
             save_data = {
-                'net': actors[0].action_net.state_dict(),
+                'net': actors[0].action_net.cpu().state_dict(),
                 'opt': actors[0].optimizer.state_dict()
             }
             torch.save(save_data, get_model_path('Path_SAC_actor_L1.pth'))
             
             # 保存 Follower 模型
-            save_data = {
-                'net': actors[1].action_net.state_dict(),
-                'opt': actors[1].optimizer.state_dict()
-            }
-            torch.save(save_data, get_model_path('Path_SAC_actor_F1.pth'))
+            if self.n_follower > 0:
+                save_data = {
+                    'net': actors[1].action_net.cpu().state_dict(),
+                    'opt': actors[1].optimizer.state_dict()
+                }
+                torch.save(save_data, get_model_path('Path_SAC_actor_F1.pth'))
+            
+            # 保存后移回GPU
+            actors[0].action_net.to(self.device)
+            if self.n_follower > 0:
+                actors[1].action_net.to(self.device)
     
     def _save_training_data(self, all_ep_r, all_ep_r0, all_ep_r1):
         """

@@ -45,11 +45,25 @@ class Tester:
                  min_action,
                  hidden_dim=256,
                  policy_lr=1e-3,
+                 device='auto',
                  leader_model_path=None,
                  follower_model_path=None):
         
         # 环境实例
         self.env = env
+        
+        # 设备选择
+        if device == 'auto':
+            self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        else:
+            self.device = torch.device(device)
+        
+        # 打印设备信息
+        if self.device.type == 'cuda':
+            gpu_name = torch.cuda.get_device_name(self.device)
+            print(f"🚀 使用GPU测试: {gpu_name}")
+        else:
+            print(f"💻 使用CPU测试")
         
         # 智能体数量
         self.n_leader = n_leader
@@ -72,7 +86,7 @@ class Tester:
     
     def _load_actor(self, model_path):
         """
-        加载 Actor 模型
+        加载 Actor 模型（自动处理设备映射）
         
         Args:
             model_path: 模型文件路径
@@ -86,10 +100,12 @@ class Tester:
             max_action=self.max_action,
             min_action=self.min_action,
             hidden_dim=self.hidden_dim,
-            policy_lr=self.policy_lr
+            policy_lr=self.policy_lr,
+            device=str(self.device)
         )
         
-        checkpoint = torch.load(model_path)
+        # 使用 map_location 自动映射到目标设备
+        checkpoint = torch.load(model_path, map_location=self.device)
         actor.action_net.load_state_dict(checkpoint['net'])
         
         return actor

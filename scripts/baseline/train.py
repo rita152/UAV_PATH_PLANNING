@@ -73,6 +73,7 @@ def main():
         tau=params['tau'],
         batch_size=params['batch_size'],
         memory_capacity=params['memory_capacity'],
+        device=params['device'],
         data_save_name=params['data_save_name']
     )
     

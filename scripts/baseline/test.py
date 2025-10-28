@@ -67,6 +67,7 @@ def main():
         min_action=min_action,
         hidden_dim=params['hidden_dim'],
         policy_lr=params['policy_lr'],
+        device=params['device'],
         leader_model_path=params['leader_model_path'],
         follower_model_path=params['follower_model_path']
     )

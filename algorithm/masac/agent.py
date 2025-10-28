@@ -8,29 +8,36 @@ from .model import ActorNet, CriticNet
 
 
 class Actor:
-    def __init__(self, state_dim, action_dim, max_action, min_action, hidden_dim, policy_lr):
+    def __init__(self, state_dim, action_dim, max_action, min_action, hidden_dim, policy_lr, device='cpu'):
         self.max_action = max_action
         self.min_action = min_action
+        self.device = torch.device(device)
+        
+        # 创建网络并移到设备
         self.action_net = ActorNet(state_dim, action_dim, max_action, hidden_dim)
+        self.action_net.to(self.device)
+        
         self.optimizer = torch.optim.Adam(self.action_net.parameters(), lr=policy_lr)
 
     def choose_action(self, state):
-        """选择动作（用于环境交互）"""
-        state_tensor = torch.FloatTensor(state)
+        """选择动作（用于环境交互）- 输入CPU numpy，输出CPU numpy"""
+        # CPU numpy → GPU tensor
+        state_tensor = torch.FloatTensor(state).to(self.device)
         mean, std = self.action_net(state_tensor)
         distribution = torch.distributions.Normal(mean, std)
         action = distribution.sample()
         action = torch.clamp(action, self.min_action, self.max_action)
-        return action.detach().numpy()
+        # GPU tensor → CPU numpy
+        return action.cpu().detach().numpy()
     
     def evaluate(self, state):
-        """评估动作（用于训练，返回动作和对数概率）"""
-        state_tensor = torch.FloatTensor(state)
-        mean, std = self.action_net(state_tensor)
+        """评估动作（用于训练）- 输入输出都是GPU tensor"""
+        # state已经是GPU上的tensor
+        mean, std = self.action_net(state)
         distribution = torch.distributions.Normal(mean, std)
         
         noise_distribution = torch.distributions.Normal(0, 1)
-        noise = noise_distribution.sample()
+        noise = noise_distribution.sample().to(self.device)
         
         action = torch.tanh(mean + std * noise)
         action = torch.clamp(action, self.min_action, self.max_action)
@@ -49,9 +56,12 @@ class Entropy:
     熵调节器（Temperature Tuning）
     自动调节SAC算法中的熵系数
     """
-    def __init__(self, target_entropy, lr):
+    def __init__(self, target_entropy, lr, device='cpu'):
         self.target_entropy = target_entropy
-        self.log_alpha = torch.zeros(1, requires_grad=True)
+        self.device = torch.device(device)
+        
+        # log_alpha需要在指定设备上
+        self.log_alpha = torch.zeros(1, requires_grad=True, device=self.device)
         self.alpha = self.log_alpha.exp()
         self.optimizer = torch.optim.Adam([self.log_alpha], lr=lr)
 
@@ -67,10 +77,16 @@ class Critic:
     Critic 网络（Q值估计）
     使用 Double Q-Network 减少过估计
     """
-    def __init__(self, state_dim, action_dim, hidden_dim, value_lr, tau):
+    def __init__(self, state_dim, action_dim, hidden_dim, value_lr, tau, device='cpu'):
         self.tau = tau
+        self.device = torch.device(device)
+        
+        # 创建网络并移到设备
         self.critic_net = CriticNet(state_dim, action_dim, hidden_dim)
         self.target_critic_net = CriticNet(state_dim, action_dim, hidden_dim)
+        self.critic_net.to(self.device)
+        self.target_critic_net.to(self.device)
+        
         self.target_critic_net.load_state_dict(self.critic_net.state_dict())
         self.optimizer = torch.optim.Adam(self.critic_net.parameters(), lr=value_lr, eps=1e-5)
         self.loss_fn = nn.MSELoss()
