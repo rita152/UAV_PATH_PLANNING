@@ -66,47 +66,64 @@ conda activate UAV_PATH_PLANNING
 
 ## 🚀 快速开始
 
-### 训练模式
+### 方式1：使用配置文件（推荐）⭐
 
-修改 `scripts/baseline/train.py` 中的参数（可选）：
-
-```python
-N_LEADER = 1  # Leader数量
-N_FOLLOWER = 1  # Follower数量
-RENDER = False  # 训练时建议关闭渲染
-EP_MAX = 500  # 最大训练轮数
-EP_LEN = 1000  # 每轮最大步数
-```
-
-运行训练：
+**训练模式**：
 
 ```bash
 # 1. 激活环境（必须）
 conda activate UAV_PATH_PLANNING
 
-# 2. 运行训练
+# 2. 使用默认配置训练
 python scripts/baseline/train.py
+
+# 3. 使用自定义配置（多Follower示例）
+python scripts/baseline/train.py --config configs/masac/multi_follower.yaml
 ```
 
-### 测试模式
-
-修改 `scripts/baseline/test.py` 中的参数（可选）：
-
-```python
-RENDER = True  # 测试时可开启可视化
-TEST_EPIOSDE = 100  # 测试轮数
-EP_LEN = 1000  # 每轮最大步数
-```
-
-运行测试：
+**测试模式**：
 
 ```bash
 # 1. 激活环境（必须）
 conda activate UAV_PATH_PLANNING
 
-# 2. 运行测试
+# 2. 使用默认配置测试
 python scripts/baseline/test.py
+
+# 3. 使用自定义配置测试
+python scripts/baseline/test.py --config configs/masac/multi_follower.yaml
 ```
+
+**修改配置**：
+
+编辑 `configs/masac/default.yaml` 文件：
+
+```yaml
+# 环境配置
+environment:
+  n_leader: 1              # Leader数量
+  n_follower: 1            # Follower数量
+  render: false            # 是否渲染
+
+# 训练配置
+training:
+  ep_max: 500              # 最大训练轮数
+  ep_len: 1000             # 每轮最大步数
+  gamma: 0.9               # 折扣因子
+  batch_size: 128          # 批次大小
+
+# 网络配置
+network:
+  hidden_dim: 256          # 隐藏层维度
+  q_lr: 3.0e-4             # Q网络学习率
+  policy_lr: 1.0e-3        # Policy学习率
+```
+
+详细配置说明见：[configs/README.md](configs/README.md)
+
+### 方式2：直接修改脚本（旧方式）
+
+修改 `scripts/baseline/train.py` 或 `configs/masac/default.yaml` 中的参数，然后运行训练或测试脚本。
 
 ## 📁 项目结构
 
@@ -121,10 +138,15 @@ UAV_PATH_PLANNING/
 │   └── commands/           # 自定义斜杠命令
 │       ├── init.md         # 初始化命令
 │       └── ultrathink.md   # 深度思考模式命令
+├── configs/                 # 配置文件目录
+│   ├── README.md           # 配置文件说明
+│   └── masac/              # MASAC算法配置
+│       ├── default.yaml    # 默认配置
+│       └── multi_follower.yaml  # 多Follower示例配置
 ├── scripts/                 # 训练和测试脚本
 │   └── baseline/           # Baseline实验脚本
-│       ├── train.py        # 训练脚本
-│       └── test.py         # 测试脚本
+│       ├── train.py        # 训练脚本（支持配置文件）
+│       └── test.py         # 测试脚本（支持配置文件）
 ├── algorithm/               # 算法实现
 │   ├── __init__.py
 │   └── masac/              # MASAC算法模块
@@ -149,7 +171,8 @@ UAV_PATH_PLANNING/
 │       └── music/          # 音效资源
 └── utils/                   # 工具函数
     ├── __init__.py
-    └── path_utils.py       # 路径管理工具（自动处理跨平台路径）
+    ├── path_utils.py       # 路径管理工具（自动处理跨平台路径）
+    └── config_loader.py    # 配置文件加载工具
 ```
 
 ## ⚙️ 核心参数配置
