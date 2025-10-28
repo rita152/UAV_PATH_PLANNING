@@ -64,17 +64,6 @@ tau = 1e-2          # 软更新系数
 
 def main():
     """主函数"""
-    # 检查 N_FOLLOWER 约束
-    try:
-        assert N_FOLLOWER == 1
-    except AssertionError:
-        print('程序终止，被逮到~嘿嘿，哥们儿预判到你会犯错，这段程序中变量\'N_FOLLOWER\'的值必须为1，请把它的值改为1。\n' 
-              '改为1之后程序一定会报错，这是因为组数越界，更改path_env.py文件中的跟随者无人机初始化个数；删除多余的\n'
-              '求距离函数，即变量dis_1_agent_0_to_3等，以及提到变量dis_1_agent_0_to_3等的地方；删除画无人机轨迹的\n'
-              '函数；删除step函数的最后一个返回值dis_1_agent_0_to_1；将player.py文件中的变量dt改为1；即可开始训练！\n'
-              '如果实在不会改也无妨，我会在不久之后出一个视频来手把手教大伙怎么改，可持续关注此项目github中的README文件。\n')
-        return
-    
     # 创建训练器（配置参数）
     trainer = Trainer(
         env=env,

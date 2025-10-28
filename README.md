@@ -175,12 +175,25 @@ UAV_PATH_PLANNING/
 
 ### 环境参数
 
-| 参数名 | 默认值 | 说明 |
-|--------|--------|------|
-| `N_LEADER` | 1 | Leader数量 |
-| `N_FOLLOWER` | 1 | Follower数量 |
-| `state_number` | 7 | 状态维度 |
-| `action_number` | 2 | 动作维度 |
+| 参数名 | 默认值 | 说明 | 可配置范围 |
+|--------|--------|------|----------|
+| `N_LEADER` | 1 | Leader数量 | 目前支持1 |
+| `N_FOLLOWER` | 1 | Follower数量 | **1-10（推荐）** |
+| `state_number` | 7 | 状态维度 | 固定 |
+| `action_number` | 2 | 动作维度 | 固定 |
+
+**🎯 多 Follower 配置示例**：
+```python
+# scripts/baseline/train.py
+N_LEADER = 1
+N_FOLLOWER = 3  # 设置3个Follower
+```
+
+**⚠️ 性能建议**：
+- 1-3 个 Follower：性能最佳，训练收敛快
+- 4-6 个 Follower：性能良好，适合复杂编队
+- 7-10 个 Follower：性能可接受，训练时间较长
+- 10+ 个 Follower：可能出现性能瓶颈和收敛困难
 
 ## 🎯 算法原理
 
@@ -570,9 +583,10 @@ print(DATA_DIR)      # saved_models/data/
 
 ### 常见问题
 
-1. **N_FOLLOWER必须为1的错误**
-   - 当前版本仅支持1个Follower
-   - 需要修改 `path_env.py` 中的相关代码以支持多个Follower
+1. **多 Follower 支持**
+   - ✅ **已支持**：可以配置任意数量的 Follower（建议 ≤ 10）
+   - 修改 `scripts/baseline/train.py` 中的 `N_FOLLOWER` 参数即可
+   - 示例：`N_FOLLOWER = 3` 将创建 3 个 Follower 无人机
 
 2. **依赖安装问题**
    - 确保安装的是 `gymnasium` 而不是旧的 `gym`
@@ -587,6 +601,14 @@ print(DATA_DIR)      # saved_models/data/
    - 如果无需可视化，设置 `RENDER=False`
 
 ### 最近更新 (2025-10-28)
+
+#### 🎉 支持可配置 Follower 数量（最新）
+✅ **解除硬编码限制**：移除 N_FOLLOWER=1 的强制约束  
+✅ **动态状态构建**：reset() 方法支持任意数量 Follower  
+✅ **循环奖励计算**：step() 方法自动处理多个 Follower 的编队奖励  
+✅ **多轨迹可视化**：不同颜色区分不同 Follower 的飞行轨迹  
+✅ **向后兼容**：N_FOLLOWER=1 时行为与原版完全一致  
+✅ **编队智能化**：Leader 同时考虑所有 Follower 的编队状态  
 
 #### 重大重构：Trainer/Tester 类封装 🎉
 ✅ **提取训练器类**：新增 `algorithm/masac/trainer.py` - Trainer 类（445行）  
