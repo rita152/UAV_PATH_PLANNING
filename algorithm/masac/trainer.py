@@ -286,32 +286,38 @@ class Trainer:
         """
         保存模型参数（自动处理GPU/CPU）
         只保存两个文件：leader.pth 和 follower.pth
-        所有Follower共享相同的权重
+        follower.pth 包含所有Follower的独立权重
         
         Args:
             actors: Actor列表
             episode: 当前轮数
         """
         if episode % 20 == 0 and episode > 200:
-            # 保存 Leader 模型（第一个智能体，移到CPU后保存）
-            save_data = {
-                'net': actors[0].action_net.cpu().state_dict(),
-                'opt': actors[0].optimizer.state_dict()
-            }
-            torch.save(save_data, get_model_path('leader.pth'))
-            
-            # 保存 Follower 模型（第二个智能体，所有Follower共享）
-            if self.n_follower > 0:
-                save_data = {
-                    'net': actors[self.n_leader].action_net.cpu().state_dict(),
-                    'opt': actors[self.n_leader].optimizer.state_dict()
+            # 保存 Leader 模型（所有Leader的权重）
+            leader_save_data = {}
+            for i in range(self.n_leader):
+                leader_save_data[f'leader_{i}'] = {
+                    'net': actors[i].action_net.cpu().state_dict(),
+                    'opt': actors[i].optimizer.state_dict()
                 }
-                torch.save(save_data, get_model_path('follower.pth'))
+            torch.save(leader_save_data, get_model_path('leader.pth'))
+            
+            # 保存 Follower 模型（所有Follower的权重打包到一个文件）
+            if self.n_follower > 0:
+                follower_save_data = {}
+                for j in range(self.n_follower):
+                    follower_idx = self.n_leader + j
+                    follower_save_data[f'follower_{j}'] = {
+                        'net': actors[follower_idx].action_net.cpu().state_dict(),
+                        'opt': actors[follower_idx].optimizer.state_dict()
+                    }
+                torch.save(follower_save_data, get_model_path('follower.pth'))
             
             # 保存后移回GPU
-            actors[0].action_net.to(self.device)
-            if self.n_follower > 0:
-                actors[self.n_leader].action_net.to(self.device)
+            for i in range(self.n_leader):
+                actors[i].action_net.to(self.device)
+            for j in range(self.n_follower):
+                actors[self.n_leader + j].action_net.to(self.device)
     
     def _save_training_data(self, all_ep_r, all_ep_r0, all_ep_r1):
         """

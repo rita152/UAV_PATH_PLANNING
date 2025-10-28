@@ -420,14 +420,15 @@ AI 将从以下 **6 个维度**进行深度分析：
 ## 📂 模型保存
 
 训练过程中，模型会自动保存到 `saved_models/` 目录：
-- `leader.pth` - Leader 模型（所有Leader共享）
-- `follower.pth` - Follower 模型（所有Follower共享）
+- `leader.pth` - Leader 模型（包含所有Leader的权重）
+- `follower.pth` - Follower 模型（包含所有Follower的权重）
 - `MASAC_new1.pkl` - 训练数据
 
-**共享权重设计**：
-- 所有Leader智能体使用相同的策略网络（`leader.pth`）
-- 所有Follower智能体使用相同的策略网络（`follower.pth`）
-- 无论有多少Follower，只保存一个follower.pth文件
+**模型文件结构**：
+- `leader.pth` 是一个字典，包含所有Leader的独立权重（leader_0, leader_1, ...）
+- `follower.pth` 是一个字典，包含所有Follower的独立权重（follower_0, follower_1, ...）
+- 每个智能体训练时有独立的权重，但保存在同一个文件中便于管理
+- 无论有多少Follower，只需要2个文件：leader.pth 和 follower.pth
 
 **建议**：将 `saved_models/` 目录添加到 `.gitignore` 以避免提交大文件。
 

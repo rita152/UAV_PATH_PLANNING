@@ -92,40 +92,61 @@ class Tester:
         self.leader_model_path = leader_model_path or get_model_path('leader.pth')
         self.follower_model_path = follower_model_path or get_model_path('follower.pth')
     
-    def _load_actor(self, model_path):
+    def _load_actors(self):
         """
-        加载 Actor 模型（自动处理设备映射）
+        加载所有智能体的模型
+        leader.pth 包含所有Leader的权重
+        follower.pth 包含所有Follower的权重
         
-        Args:
-            model_path: 模型文件路径
-            
         Returns:
-            actor: 加载了权重的Actor实例
+            actors: Actor列表（每个智能体独立）
         """
-        actor = Actor(
-            state_dim=self.state_dim,
-            action_dim=self.action_dim,
-            max_action=self.max_action,
-            min_action=self.min_action,
-            hidden_dim=self.hidden_dim,
-            policy_lr=self.policy_lr,
-            device=str(self.device)
-        )
+        actors = []
         
-        # 使用 map_location 自动映射到目标设备
-        checkpoint = torch.load(model_path, map_location=self.device)
-        actor.action_net.load_state_dict(checkpoint['net'])
+        # 加载Leader模型
+        leader_checkpoint = torch.load(self.leader_model_path, map_location=self.device)
         
-        return actor
+        for i in range(self.n_leader):
+            actor = Actor(
+                state_dim=self.state_dim,
+                action_dim=self.action_dim,
+                max_action=self.max_action,
+                min_action=self.min_action,
+                hidden_dim=self.hidden_dim,
+                policy_lr=self.policy_lr,
+                device=str(self.device)
+            )
+            # 加载对应Leader的权重
+            actor.action_net.load_state_dict(leader_checkpoint[f'leader_{i}']['net'])
+            actors.append(actor)
+        
+        # 加载Follower模型
+        if self.n_follower > 0:
+            follower_checkpoint = torch.load(self.follower_model_path, map_location=self.device)
+            
+            for j in range(self.n_follower):
+                actor = Actor(
+                    state_dim=self.state_dim,
+                    action_dim=self.action_dim,
+                    max_action=self.max_action,
+                    min_action=self.min_action,
+                    hidden_dim=self.hidden_dim,
+                    policy_lr=self.policy_lr,
+                    device=str(self.device)
+                )
+                # 加载对应Follower的权重
+                actor.action_net.load_state_dict(follower_checkpoint[f'follower_{j}']['net'])
+                actors.append(actor)
+        
+        return actors
     
-    def _select_actions(self, leader_actor, follower_actor, state):
+    def _select_actions(self, actors, state):
         """
         选择动作（使用训练好的策略，无探索噪声）
-        所有Leader使用leader_actor，所有Follower使用follower_actor（共享权重）
+        每个智能体使用自己独立的权重
         
         Args:
-            leader_actor: Leader的Actor（所有Leader共享）
-            follower_actor: Follower的Actor（所有Follower共享）
+            actors: Actor列表（每个智能体独立）
             state: 当前状态
             
         Returns:
@@ -133,13 +154,9 @@ class Tester:
         """
         action = np.zeros((self.n_agents, self.action_dim))
         
-        # Leader 选择动作（所有Leader使用相同的策略网络）
-        for i in range(self.n_leader):
-            action[i] = leader_actor.choose_action(state[i])
-        
-        # Follower 选择动作（所有Follower使用相同的策略网络）
-        for i in range(self.n_follower):
-            action[self.n_leader + i] = follower_actor.choose_action(state[self.n_leader + i])
+        # 每个智能体使用自己的策略网络选择动作
+        for i in range(self.n_agents):
+            action[i] = actors[i].choose_action(state[i])
         
         return action
     
@@ -157,9 +174,8 @@ class Tester:
         """
         print('SAC测试中...')
         
-        # 加载模型
-        leader_actor = self._load_actor(self.leader_model_path)
-        follower_actor = self._load_actor(self.follower_model_path)
+        # 加载所有智能体的模型（每个智能体独立权重）
+        actors = self._load_actors()
         
         # 初始化统计变量
         win_times = 0
@@ -182,14 +198,14 @@ class Tester:
             total_rewards = 0
             integral_V = 0
             integral_U = 0
-            v, v1, Dis = [], [], []
+            v, v1 = [], []
             
             for timestep in range(ep_len):
-                # 选择动作
-                action = self._select_actions(leader_actor, follower_actor, state)
+                # 选择动作（每个智能体使用自己的权重）
+                action = self._select_actions(actors, state)
                 
                 # 执行动作
-                new_state, reward, done, win, team_counter, dis = self.env.step(action)
+                new_state, reward, done, win, team_counter = self.env.step(action)
                 
                 # 记录胜利
                 if win:
@@ -198,7 +214,6 @@ class Tester:
                 # 记录数据
                 v.append(state[0][2] * 30)
                 v1.append(state[1][2] * 30)
-                Dis.append(dis)
                 integral_V += state[0][2]
                 integral_U += abs(action[0]).sum()
                 total_rewards += reward.mean()

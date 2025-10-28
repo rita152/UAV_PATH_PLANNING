@@ -99,9 +99,9 @@ def main():
     print("训练完成！")
     print("="*60)
     print(f"训练数据: saved_models/data/{params['data_save_name']}")
-    print(f"Leader模型: saved_models/leader.pth")
+    print(f"Leader模型: saved_models/leader.pth (包含{params['n_leader']}个Leader)")
     if params['n_follower'] > 0:
-        print(f"Follower模型: saved_models/follower.pth (所有Follower共享)")
+        print(f"Follower模型: saved_models/follower.pth (包含{params['n_follower']}个Follower)")
     print("="*60)
 
 
