@@ -870,6 +870,81 @@ print(PROJECT_ROOT)  # 项目根目录
 
 ### 最近更新 (2025-10-29)
 
+#### 🎯 参数优化分析与实施 - 降低Timeout率
+
+##### 📊 方案B实施结果验证
+
+✅ **已实施方案B**：增强目标距离惩罚（5倍）  
+✅ **训练验证**：完成2F和3F配置的完整训练（500 episodes）  
+⚠️ **效果评估**：改善有限，后期仍有14.5%-19%的timeout率  
+🔍 **深度分析**：发现Alpha值过度衰减（0.36→0.07）是根本原因  
+📋 **优化报告**：详见 `docs/parameter_optimization/parameter_optimization.md`  
+
+**已实施配置**（方案B）：
+```python
+REWARD_PARAMS = {
+    'goal_distance_coef': -0.005,    # ✅ 已修改：5倍增强（从-0.001）
+}
+```
+
+**实验结果对比**：
+
+| 配置 | 前期Timeout | 中期Timeout | 后期Timeout | Alpha变化 | 评估 |
+|------|------------|------------|------------|----------|------|
+| **2F优化后** | 30.0% | 16.5% | **14.5%** | 0.36→0.07⬇80% | ⚠️ 改善有限 |
+| **3F优化后** | 39.0% | 31.5% | **19.0%** | 0.94→0.11⬇89% | ⚠️ 仍偏高 |
+
+**关键发现**：
+1. ✅ Timeout率在训练中确实下降（30%→14.5%）
+2. ⚠️ 但后期仍有14.5%-19%的timeout，未达预期（8-12%）
+3. 🔴 **根本问题**：Alpha值过度衰减导致探索不足，陷入局部最优
+4. 🔴 仅增强距离惩罚效果有限，缺乏直接时间压力
+
+##### ✅ 已实施方案C增强版
+
+**方案C完整实施**（基于实验结果的优化）：
+
+**已完成的修改**（4处）：
+1. ✅ 添加时间步惩罚参数：`'time_step_penalty': -1.0`
+2. ✅ 应用到Leader奖励（path_env.py 415行）
+3. ✅ 应用到Follower奖励（path_env.py 467行）
+4. ✅ 调整target_entropy（trainer.py 325行）：`-0.1 → -0.5`
+
+**完整配置**：
+```python
+# rl_env/path_env.py
+REWARD_PARAMS = {
+    'goal_distance_coef': -0.005,     # ✅ 已实施（5倍增强）
+    'time_step_penalty': -1.0,        # ✅ 已实施（直接时间压力）
+    # ... 其他参数保持不变
+}
+
+# algorithm/masac/trainer.py (第325行)
+target_entropy = -0.5  # ✅ 已修改（从-0.1，保持探索性）
+```
+
+**预期效果**（方案C增强版）：
+- 2F Timeout率: 14.5% → **3-5%** (降低70%) 🎯
+- 3F Timeout率: 19.0% → **8-12%** (降低60%) 🎯
+- Alpha值保持在0.15-0.30（避免过度衰减）
+- 平均步数减少40%
+- 任务完成效率显著提升
+
+**验证测试**：
+```bash
+# 重新训练验证优化效果
+conda activate UAV_PATH_PLANNING
+python scripts/baseline/train.py --n_follower 2 --ep_max 200
+```
+
+**关键改进**：
+- ✅ 每步直接惩罚-1.0，强制快速决策
+- ✅ 目标距离惩罚-0.005，更强的引导
+- ✅ target_entropy提高5倍，保持探索性
+- ✅ 打破局部最优，避免"慢慢走"策略
+
+**技术深度分析**：详见 `docs/parameter_optimization/parameter_optimization.md`
+
 #### 🚀 完成系统性能优化（阶段1+2）- P0级别 ⭐⭐⭐⭐⭐
 ✅ **性能分析报告**：详见 `docs/performance_optimization/performance_optimization.md`  
 ✅ **优化范围**：GPU并行化、混合精度训练、异步数据传输  

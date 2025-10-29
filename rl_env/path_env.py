@@ -38,9 +38,10 @@ REWARD_PARAMS = {
     'warning_penalty': -2.0,          # 警告惩罚（接近障碍）
     'boundary_penalty': -1.0,         # 边界惩罚
     'goal_reward': 1000.0,            # 到达目标奖励
-    'goal_distance_coef': -0.001,     # 目标距离惩罚系数
+    'goal_distance_coef': -0.005,     # 🎯 目标距离惩罚系数（5倍增强，降低Timeout率）
     'formation_distance_coef': -0.001,# 编队距离惩罚系数
-    'speed_match_reward': 1.0         # 速度匹配奖励
+    'speed_match_reward': 1.0,        # 速度匹配奖励
+    'time_step_penalty': -1.0         # ⭐ 时间步惩罚（方案C：强制快速决策，降低Timeout率）
 }
 
 # 速度匹配阈值
@@ -410,6 +411,8 @@ class RlGame(gym.Env):
         
         # 总奖励
         r[i] = edge_r[i] + obstacle_r[i] + goal_r[i] + speed_r_leader + follow_r_leader
+        # ⭐ 方案C：添加时间步惩罚（强制快速决策，降低Timeout率）
+        r[i] += REWARD_PARAMS.get('time_step_penalty', 0)
         
         # 状态更新（使用归一化辅助函数）
         self.leader_state[i] = self._get_leader_state(obstacle_flag=o_flag)
@@ -460,6 +463,8 @@ class RlGame(gym.Env):
             
             # 总奖励
             r[i] = edge_r_f[j] + obstacle_r_f + follow_r[j] + speed_r_f
+            # ⭐ 方案C：添加时间步惩罚（强制快速决策，降低Timeout率）
+            r[i] += REWARD_PARAMS.get('time_step_penalty', 0)
             
             # 状态更新（使用归一化辅助函数）
             self.leader_state[i] = self._get_follower_state(follower)

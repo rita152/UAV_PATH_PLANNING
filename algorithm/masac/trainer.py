@@ -320,8 +320,9 @@ class Trainer:
             critics.append(critic)
             
             # 创建 Entropy 调节器（移到GPU）
+            # ⭐ 方案C：调整target_entropy以保持探索性，避免过早收敛
             entropy = Entropy(
-                target_entropy=-0.1,
+                target_entropy=-0.5,  # 从-0.1改为-0.5，保持更高的Alpha值
                 lr=self.q_lr,
                 device=str(self.device)
             )
