@@ -863,9 +863,31 @@ print(PROJECT_ROOT)  # 项目根目录
    - 确保安装了pygame：`pip install pygame`
    - 如果无需可视化，设置 `RENDER=False`
 
+### 最近更新 (2025-10-29)
+
+#### 🔴 修复MASAC核心算法bug（P0级别）⭐⭐⭐
+✅ **修复CTDE实现错误**：Critic现在正确使用全局动作（所有agent的动作）  
+✅ **完整的MASAC实现**：实现真正的集中式训练、去中心化执行（CTDE）架构  
+✅ **多智能体协调学习**：Critic能够评估全局状态-动作价值，学习协调策略  
+✅ **修复Critic初始化**：`action_dim`改为`action_dim * n_agents`（全局动作维度）  
+✅ **修复训练更新逻辑**：构建全局动作向量用于Critic评估  
+✅ **优化PER集成**：TD-error计算使用所有agent的平均值  
+✅ **详细代码注释**：添加CTDE原理说明，便于理解算法架构  
+
+**影响**：
+- 修复前：退化为多个独立的SAC（无协调学习）
+- 修复后：真正的MASAC（支持多智能体协调）
+- 预期效果：编队保持率和任务完成率显著提升
+
+**技术细节**：
+- Critic网络：`state_dim=7*n_agents, action_dim=2*n_agents`（全局输入）
+- 目标Q值计算：拼接所有agent的下一动作为全局动作向量
+- Actor更新：构建包含当前agent新动作和其他agent历史动作的全局动作
+- 符合MARL标准：训练时集中（全局信息），执行时去中心（局部观测）
+
 ### 最近更新 (2025-10-28)
 
-#### 🎯 API重构：简化Trainer调用（最新）
+#### 🎯 API重构：简化Trainer调用
 ✅ **配置化初始化**：`Trainer(config="config.yaml")` 一行代码创建训练器  
 ✅ **自动环境创建**：Trainer内部自动创建和配置环境  
 ✅ **参数覆盖支持**：`Trainer(config="...", ep_max=1000, device='cuda:1')`  

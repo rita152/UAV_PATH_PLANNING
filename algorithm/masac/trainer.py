@@ -282,9 +282,10 @@ class Trainer:
             actors.append(actor)
             
             # 创建 Critic（移到GPU）
+            # CTDE: Critic 使用全局状态和全局动作进行集中式训练
             critic = Critic(
-                state_dim=self.state_dim * self.n_agents,
-                action_dim=self.action_dim,
+                state_dim=self.state_dim * self.n_agents,      # 全局状态
+                action_dim=self.action_dim * self.n_agents,    # 全局动作（MASAC的核心）
                 hidden_dim=self.hidden_dim,
                 value_lr=self.value_lr,
                 tau=self.tau,
@@ -393,22 +394,34 @@ class Trainer:
         alpha_losses = []
         alphas = []
         
-        # 更新每个智能体
+        # 更新每个智能体（CTDE: 集中式训练，去中心化执行）
         for i in range(self.n_agents):
-            # 计算目标 Q 值
-            new_action, log_prob_ = actors[i].evaluate(
-                b_s_[:, self.state_dim * i : self.state_dim * (i + 1)]
-            )
-            target_q1, target_q2 = critics[i].get_target_q_value(b_s_, new_action)
+            # ===== 计算目标 Q 值（使用全局动作） =====
+            # 构建下一个状态的全局动作向量
+            next_actions = []
+            next_log_probs = []
+            for j in range(self.n_agents):
+                a_next, log_p_next = actors[j].evaluate(
+                    b_s_[:, self.state_dim * j : self.state_dim * (j + 1)]
+                )
+                next_actions.append(a_next)
+                next_log_probs.append(log_p_next)
+            
+            # 拼接为全局动作 [batch, action_dim * n_agents]
+            full_next_actions = torch.cat(next_actions, dim=1)
+            
+            # 目标 Q 值（Critic 使用全局状态 + 全局动作）
+            target_q1, target_q2 = critics[i].get_target_q_value(b_s_, full_next_actions)
             target_q = b_r[:, i:(i + 1)] + self.gamma * (
                 torch.min(target_q1, target_q2) - 
-                entropies[i].alpha * log_prob_  # log_prob_ 已经求和过了
+                entropies[i].alpha * next_log_probs[i]  # 只用当前agent的log_prob
             )
             
-            # 更新 Critic（应用重要性采样权重）
-            current_q1, current_q2 = critics[i].get_q_value(
-                b_s, b_a[:, self.action_dim * i : self.action_dim * (i + 1)]
-            )
+            # ===== 更新 Critic（使用全局动作） =====
+            # 使用batch中的全局动作
+            full_actions = b_a  # [batch, action_dim * n_agents]
+            
+            current_q1, current_q2 = critics[i].get_q_value(b_s, full_actions)
             
             # 计算TD-error（用于更新优先级）
             td_error = torch.abs(current_q1 - target_q.detach())
@@ -425,19 +438,34 @@ class Trainer:
             critics[i].optimizer.step()
             critic_losses.append(critic_loss.item())
             
-            # 更新 Actor
-            a, log_prob = actors[i].evaluate(
-                b_s[:, self.state_dim * i : self.state_dim * (i + 1)]
-            )
-            q1, q2 = critics[i].get_q_value(b_s, a)
+            # ===== 更新 Actor（使用全局动作） =====
+            # 构建当前状态的全局动作向量（当前agent使用新采样的动作）
+            current_actions = []
+            for j in range(self.n_agents):
+                if j == i:
+                    # 当前agent使用新采样的动作（用于计算梯度）
+                    a_curr, log_p_curr = actors[j].evaluate(
+                        b_s[:, self.state_dim * j : self.state_dim * (j + 1)]
+                    )
+                    current_log_prob = log_p_curr
+                else:
+                    # 其他agent使用batch中的动作（停止梯度）
+                    a_curr = b_a[:, self.action_dim * j : self.action_dim * (j + 1)].detach()
+                current_actions.append(a_curr)
+            
+            # 拼接为全局动作
+            full_current_actions = torch.cat(current_actions, dim=1)
+            
+            # Actor loss（Critic 评估全局动作）
+            q1, q2 = critics[i].get_q_value(b_s, full_current_actions)
             q = torch.min(q1, q2)
-            actor_loss = (entropies[i].alpha * log_prob - q).mean()  # log_prob 已经求和过了
+            actor_loss = (entropies[i].alpha * current_log_prob - q).mean()
             actor_loss_value = actors[i].update(actor_loss)
             actor_losses.append(actor_loss_value)
             
             # 更新 Entropy
             alpha_loss = -(entropies[i].log_alpha.exp() * (
-                log_prob + entropies[i].target_entropy  # log_prob 已经求和过了
+                current_log_prob + entropies[i].target_entropy
             ).detach()).mean()
             alpha_loss_value = entropies[i].update(alpha_loss)
             alpha_losses.append(alpha_loss_value)
@@ -446,8 +474,9 @@ class Trainer:
             # 软更新目标网络
             critics[i].soft_update()
         
-        # 更新优先级（使用第一个智能体的TD-error）
-        mean_td_error = td_errors[0].cpu().detach().numpy()
+        # 更新优先级（使用所有智能体的平均TD-error）
+        all_td_errors = torch.stack(td_errors, dim=0)  # [n_agents, batch, 1]
+        mean_td_error = all_td_errors.mean(dim=0).cpu().detach().numpy()
         memory.update_priorities(indices, mean_td_error)
         
         # 返回统计信息
