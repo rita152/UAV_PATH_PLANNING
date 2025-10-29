@@ -152,21 +152,24 @@ class Tester:
     
     def _select_actions(self, actors, state):
         """
-        选择动作（使用确定性策略进行测试）
+        选择动作（使用确定性策略进行测试）- 使用批量处理优化CPU-GPU传输
+        
         每个智能体使用自己独立的权重
+        
+        优化说明：
+        - 使用批量方法一次性处理所有agent的动作
+        - 减少CPU-GPU数据传输次数（从 2*n_agents 次降低到 2 次）
+        - 显著提升测试速度（特别是多agent场景）
         
         Args:
             actors: Actor列表（每个智能体独立）
-            state: 当前状态
+            state: 当前状态 [n_agents, state_dim]
             
         Returns:
-            action: 动作数组
+            action: 动作数组 [n_agents, action_dim]
         """
-        action = np.zeros((self.n_agents, self.action_dim))
-        
-        # 每个智能体使用确定性策略（使用均值，不采样）
-        for i in range(self.n_agents):
-            action[i] = actors[i].choose_action_deterministic(state[i])
+        # 使用批量确定性方法（优化：减少CPU-GPU传输）
+        action = Actor.choose_actions_batch_deterministic(actors, state, self.device)
         
         return action
     

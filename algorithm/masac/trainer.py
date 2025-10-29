@@ -333,23 +333,25 @@ class Trainer:
     
     def _collect_experience(self, actors, observation):
         """
-        采集经验（选择动作）
+        采集经验（选择动作）- 使用批量处理优化CPU-GPU传输
         
         SAC 使用随机策略，不需要额外的探索噪声
         Actor 输出的高斯分布采样本身就提供了探索
         
+        优化说明：
+        - 使用批量方法一次性处理所有agent的动作
+        - 减少CPU-GPU数据传输次数（从 2*n_agents 次降低到 2 次）
+        - 显著提升训练速度（特别是多agent场景）
+        
         Args:
             actors: Actor列表
-            observation: 当前观测
+            observation: 当前观测 [n_agents, state_dim]
             
         Returns:
-            action: 执行的动作
+            action: 执行的动作 [n_agents, action_dim]
         """
-        action = np.zeros((self.n_agents, self.action_dim))
-        
-        # 选择动作（已经包含随机探索）
-        for i in range(self.n_agents):
-            action[i] = actors[i].choose_action(observation[i])
+        # 使用批量方法（优化：减少CPU-GPU传输）
+        action = Actor.choose_actions_batch(actors, observation, self.device)
         
         # SAC 不需要额外噪声，策略本身是随机的
         action = np.clip(action, -self.max_action, self.max_action)

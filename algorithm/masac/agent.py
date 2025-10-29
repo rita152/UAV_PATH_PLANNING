@@ -63,6 +63,72 @@ class Actor:
         # GPU tensor → CPU numpy
         return action.cpu().numpy()
     
+    @staticmethod
+    @torch.no_grad()
+    def choose_actions_batch(actors, states, device):
+        """
+        批量选择动作（优化CPU-GPU传输）- 输入CPU numpy数组，输出CPU numpy数组
+        
+        一次性处理所有agent的动作选择，减少CPU-GPU数据传输次数
+        
+        Args:
+            actors: Actor列表 [n_agents]
+            states: 所有agent的状态 [n_agents, state_dim] (CPU numpy)
+            device: 计算设备
+            
+        Returns:
+            actions: 所有agent的动作 [n_agents, action_dim] (CPU numpy)
+        """
+        n_agents = len(actors)
+        actions = []
+        
+        # 一次性将所有状态转移到GPU
+        states_tensor = torch.FloatTensor(states).to(device)  # [n_agents, state_dim]
+        
+        # 批量计算所有agent的动作
+        for i in range(n_agents):
+            mean, std = actors[i].action_net(states_tensor[i])
+            distribution = torch.distributions.Normal(mean, std)
+            action = distribution.sample()
+            action = torch.clamp(action, actors[i].min_action, actors[i].max_action)
+            actions.append(action)
+        
+        # 拼接并一次性转回CPU
+        actions_tensor = torch.stack(actions, dim=0)  # [n_agents, action_dim]
+        return actions_tensor.cpu().numpy()
+    
+    @staticmethod
+    @torch.no_grad()
+    def choose_actions_batch_deterministic(actors, states, device):
+        """
+        批量确定性动作选择（优化CPU-GPU传输）- 输入CPU numpy数组，输出CPU numpy数组
+        
+        用于测试时的批量动作选择，使用确定性策略（均值）
+        
+        Args:
+            actors: Actor列表 [n_agents]
+            states: 所有agent的状态 [n_agents, state_dim] (CPU numpy)
+            device: 计算设备
+            
+        Returns:
+            actions: 所有agent的动作 [n_agents, action_dim] (CPU numpy)
+        """
+        n_agents = len(actors)
+        actions = []
+        
+        # 一次性将所有状态转移到GPU
+        states_tensor = torch.FloatTensor(states).to(device)  # [n_agents, state_dim]
+        
+        # 批量计算所有agent的动作（使用均值）
+        for i in range(n_agents):
+            mean, _ = actors[i].action_net(states_tensor[i])
+            action = torch.clamp(mean, actors[i].min_action, actors[i].max_action)
+            actions.append(action)
+        
+        # 拼接并一次性转回CPU
+        actions_tensor = torch.stack(actions, dim=0)  # [n_agents, action_dim]
+        return actions_tensor.cpu().numpy()
+    
     def evaluate(self, state):
         """
         评估动作（用于训练）- 输入输出都是GPU tensor

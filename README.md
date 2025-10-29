@@ -865,6 +865,26 @@ print(PROJECT_ROOT)  # 项目根目录
 
 ### 最近更新 (2025-10-29)
 
+#### 🟡 优化CPU-GPU数据传输（P1级别）⚡
+✅ **添加批量动作选择方法**：`Actor.choose_actions_batch()` 和 `choose_actions_batch_deterministic()`  
+✅ **减少数据传输次数**：从 `2*n_agents` 次降低到 `2` 次（每个时间步）  
+✅ **显著提升训练速度**：多agent场景下性能提升明显  
+✅ **优化训练和测试**：Trainer 和 Tester 都使用批量方法  
+✅ **向后兼容**：保留原有的单个动作选择方法  
+✅ **详细文档**：添加优化说明和性能分析注释  
+
+**性能提升**：
+- 2 agents: CPU-GPU传输从 4 次降低到 2 次（减少 50%）
+- 5 agents: CPU-GPU传输从 10 次降低到 2 次（减少 80%）
+- 10 agents: CPU-GPU传输从 20 次降低到 2 次（减少 90%）
+- 训练速度预期提升：10-30%（取决于agent数量和GPU性能）
+
+**技术细节**：
+- 使用静态方法 `@staticmethod` 实现批量处理
+- 一次性将所有状态转移到 GPU：`states_tensor = torch.FloatTensor(states).to(device)`
+- 批量计算后一次性转回 CPU：`actions_tensor.cpu().numpy()`
+- 同时提供训练和测试的批量版本
+
 #### 🔴 修复MASAC核心算法bug（P0级别）⭐⭐⭐
 ✅ **修复CTDE实现错误**：Critic现在正确使用全局动作（所有agent的动作）  
 ✅ **完整的MASAC实现**：实现真正的集中式训练、去中心化执行（CTDE）架构  
