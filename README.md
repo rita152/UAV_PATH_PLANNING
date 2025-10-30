@@ -868,6 +868,54 @@ print(PROJECT_ROOT)  # 项目根目录
    - 确保安装了pygame：`pip install pygame`
    - 如果无需可视化，设置 `RENDER=False`
 
+### 最近更新 (2025-10-30)
+
+#### 🎯 方案A实施：奖励函数优化（针对4_follower TIMEOUT问题）
+
+✅ **已实施方案A**：优化奖励参数，解决4_follower训练中的高TIMEOUT率问题  
+✅ **修改文件**：`rl_env/path_env.py` - REWARD_PARAMS 配置  
+✅ **优化内容**：
+- `goal_distance_coef`: -0.005 → **-0.02** (4倍增强，引导快速接近目标)
+- `time_step_penalty`: -1.0 → **-0.2** (降低80%，减少过度惩罚)
+- `formation_distance_coef`: -0.001 → **-0.005** (5倍增强，促进编队形成)
+
+**问题分析**：
+- 🔴 **维度灾难**：4_follower状态空间35维，探索难度 O(n^5) 级别
+- 🔴 **奖励设计不合理**：时间惩罚过重(-1000 vs +1000)，距离惩罚太弱(-5 vs -1000)
+- 🔴 **成功条件严苛**：所有4个follower必须同时编队，任一失败=整体失败
+- 🔴 **训练量不足**：500 episodes << 实际需求
+
+**优化配置**（方案A）：
+```python
+# rl_env/path_env.py (第36-45行)
+REWARD_PARAMS = {
+    'collision_penalty': -500.0,
+    'warning_penalty': -2.0,
+    'boundary_penalty': -1.0,
+    'goal_reward': 1000.0,
+    'goal_distance_coef': -0.02,      # ✅ 4倍增强（引导快速接近目标）
+    'formation_distance_coef': -0.005,# ✅ 5倍增强（促进编队形成）
+    'speed_match_reward': 1.0,
+    'time_step_penalty': -0.2         # ✅ 降低80%（减少过度惩罚）
+}
+```
+
+**预期效果**：
+- 4F TIMEOUT率: 45% → **25-30%** (降低约40%) 🎯
+- 训练稳定性提升
+- 奖励更平衡，避免"慢速移动"策略
+- 更强的目标导向和编队激励
+
+**验证测试**：
+```bash
+conda activate UAV_PATH_PLANNING
+python scripts/baseline/train.py --n_follower 4 --ep_max 500
+```
+
+**技术深度分析**：详见项目 Issue #XXX 或提交记录
+
+---
+
 ### 最近更新 (2025-10-29)
 
 #### 🎯 参数优化分析与实施 - 降低Timeout率
