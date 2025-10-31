@@ -80,13 +80,34 @@ class RlGame(gym.Env):
         high = np.array([1, 1])
         self.action_space = spaces.Box(low=low, high=high, dtype=np.float32)
         
-        # 定义观测空间：符合 Gymnasium 标准
-        # 每个智能体的状态维度为 7
-        # Leader: [x, y, speed, angle, goal_x, goal_y, obstacle_flag]
-        # Follower: [x, y, speed, angle, leader_x, leader_y, leader_speed]
+        # 定义观测空间：符合 Gymnasium 标准（方案A改进）
+        # Leader状态维度: 11维
+        # Leader: [x, y, speed, angle, goal_x, goal_y, obstacle_flag, 
+        #          distance_to_goal, bearing_to_goal, obstacle_distance, avg_follower_distance]
+        # 
+        # Follower状态维度: 10维
+        # Follower: [x, y, speed, angle, leader_x, leader_y, leader_speed,
+        #            distance_to_leader, bearing_to_leader, leader_velocity_diff]
         n_agents = self.n_leader + self.n_follower
-        obs_low = np.array([[0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0]] * n_agents, dtype=np.float32)
-        obs_high = np.array([[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]] * n_agents, dtype=np.float32)
+        
+        # Leader和Follower的维度不同，需要分别定义
+        leader_low = [0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0]
+        leader_high = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+        follower_low = [0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0, -1.0, -1.0]
+        follower_high = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+        
+        # 组合所有agent的观测空间（Leader + Followers）
+        all_lows = [leader_low] + [follower_low] * self.n_follower
+        all_highs = [leader_high] + [follower_high] * self.n_follower
+        
+        # 注意：这里无法使用Box，因为不同agent维度不同
+        # 需要使用Dict或Tuple空间，或者padding到相同维度
+        # 为了兼容性，我们padding follower到11维
+        follower_low_padded = follower_low + [0.0]  # padding 1维
+        follower_high_padded = follower_high + [1.0]
+        
+        obs_low = np.array([leader_low] + [follower_low_padded] * self.n_follower, dtype=np.float32)
+        obs_high = np.array([leader_high] + [follower_high_padded] * self.n_follower, dtype=np.float32)
         self.observation_space = spaces.Box(low=obs_low, high=obs_high, dtype=np.float32)
     def start(self):
         # self.game_info=game_info
@@ -192,39 +213,109 @@ class RlGame(gym.Env):
     
     def _get_leader_state(self, obstacle_flag=0):
         """
-        获取Leader的归一化状态
+        获取Leader的归一化状态（方案A改进版）
         
         Returns:
-            list: [x, y, speed, angle, goal_x, goal_y, obstacle_flag]
+            list: [x, y, speed, angle, goal_x, goal_y, obstacle_flag,
+                   distance_to_goal, bearing_to_goal, obstacle_distance, avg_follower_distance]
+            维度: 11维（原7维 + 新增4维）
         """
+        # === 计算新增的关键特征 ===
+        
+        # 1. 到目标的距离和方位
+        dx_goal = self.goal0.init_x - self.leader.posx
+        dy_goal = self.goal0.init_y - self.leader.posy
+        distance_to_goal = math.hypot(dx_goal, dy_goal)
+        angle_to_goal = math.atan2(dy_goal, dx_goal)
+        bearing_to_goal = angle_to_goal - self.leader.theta  # 相对当前朝向的方位角
+        # 归一化到[-π, π]
+        bearing_to_goal = math.atan2(math.sin(bearing_to_goal), math.cos(bearing_to_goal))
+        
+        # 2. 到障碍物的距离和方位（替代简单的obstacle_flag）
+        dx_obs = self.obstacle0.init_x - self.leader.posx
+        dy_obs = self.obstacle0.init_y - self.leader.posy
+        obstacle_distance = math.hypot(dx_obs, dy_obs)
+        
+        # 3. 平均follower距离（编队感知）
+        avg_follower_distance = 0.0
+        if self.n_follower > 0:
+            total_dist = 0.0
+            for j in range(self.n_follower):
+                dist = math.hypot(
+                    self.leader.posx - self.follower[f'follower{j}'].posx,
+                    self.leader.posy - self.follower[f'follower{j}'].posy
+                )
+                total_dist += dist
+            avg_follower_distance = total_dist / self.n_follower
+        
+        # === 组装状态（11维）===
         return [
+            # 原有基础状态 (4维)
             self._normalize_position(self.leader.posx),
             self._normalize_position(self.leader.posy),
             self._normalize_speed(self.leader.speed),
             self._normalize_angle(self.leader.theta),
+            
+            # 目标信息 (2维)
             self._normalize_position(self.goal0.init_x),
             self._normalize_position(self.goal0.init_y),
-            obstacle_flag
+            
+            # 障碍物标志 (1维) - 保留向后兼容
+            obstacle_flag,
+            
+            # 新增P0关键特征 (4维) 🆕
+            distance_to_goal / 1000.0,           # 归一化距离（最大约500）
+            bearing_to_goal / (2 * math.pi),     # 归一化方位角[-π,π]→[-0.5,0.5]
+            obstacle_distance / 1000.0,          # 归一化障碍物距离
+            avg_follower_distance / 200.0        # 归一化平均follower距离（最大约200）
         ]
     
     def _get_follower_state(self, follower):
         """
-        获取Follower的归一化状态
+        获取Follower的归一化状态（方案A改进版）
         
         Args:
             follower: Follower 智能体实例
             
         Returns:
-            list: [x, y, speed, angle, leader_x, leader_y, leader_speed]
+            list: [x, y, speed, angle, leader_x, leader_y, leader_speed,
+                   distance_to_leader, bearing_to_leader, leader_velocity_diff, padding]
+            维度: 11维（原7维 + 新增3维 + 1维padding保持与Leader相同维度）
         """
+        # === 计算新增的关键特征 ===
+        
+        # 1. 到Leader的距离和方位
+        dx_leader = self.leader.posx - follower.posx
+        dy_leader = self.leader.posy - follower.posy
+        distance_to_leader = math.hypot(dx_leader, dy_leader)
+        angle_to_leader = math.atan2(dy_leader, dx_leader)
+        bearing_to_leader = angle_to_leader - follower.theta  # 相对当前朝向的方位角
+        # 归一化到[-π, π]
+        bearing_to_leader = math.atan2(math.sin(bearing_to_leader), math.cos(bearing_to_leader))
+        
+        # 2. 速度差（用于速度匹配）
+        leader_velocity_diff = self.leader.speed - follower.speed
+        
+        # === 组装状态（11维，最后1维padding）===
         return [
+            # 原有基础状态 (4维)
             self._normalize_position(follower.posx),
             self._normalize_position(follower.posy),
             self._normalize_speed(follower.speed),
             self._normalize_angle(follower.theta),
+            
+            # Leader信息 (3维)
             self._normalize_position(self.leader.posx),
             self._normalize_position(self.leader.posy),
-            self._normalize_speed(self.leader.speed)
+            self._normalize_speed(self.leader.speed),
+            
+            # 新增P0关键特征 (3维) 🆕
+            distance_to_leader / 200.0,              # 归一化距离（最大约200）
+            bearing_to_leader / (2 * math.pi),       # 归一化方位角
+            leader_velocity_diff / 40.0,             # 归一化速度差（-40到+40）
+            
+            # Padding (1维) - 保持与Leader相同维度11维
+            0.0
         ]
 
     def reset(self, seed=None, options=None):
@@ -254,37 +345,27 @@ class RlGame(gym.Env):
         
         self.team_counter = 0
         self.done = False
-        self.leader_state = np.zeros((self.n_leader + self.n_follower, 7))
+        self.leader_state = np.zeros((self.n_leader + self.n_follower, 11))  # 7 → 11维
         self.leader_α = np.zeros((self.n_leader, 1))
         
-        # 构建初始观测状态（使用归一化辅助函数）
+        # 构建初始观测状态（使用改进的状态函数 - 方案A）
         states = []
         
-        # Leader状态（使用 init_x/init_y 作为初始位置）
-        state = [
-            self._normalize_position(self.leader.init_x),
-            self._normalize_position(self.leader.init_y),
-            self._normalize_speed(self.leader.speed),
-            self._normalize_angle(self.leader.theta),
-            self._normalize_position(self.goal0.init_x),
-            self._normalize_position(self.goal0.init_y),
-            0  # 初始无障碍标志
-        ]
-        states.append(state)
+        # Leader状态（使用状态函数计算，包含新增特征）
+        # 临时设置leader的位置为初始位置（用于计算距离等特征）
+        self.leader.posx = self.leader.init_x
+        self.leader.posy = self.leader.init_y
+        leader_state = self._get_leader_state(obstacle_flag=0)
+        states.append(leader_state)
         
-        # Follower状态
+        # Follower状态（使用状态函数计算）
         for i in range(self.n_follower):
             follower = self.follower[f'follower{i}']
-            state = [
-                self._normalize_position(follower.init_x),
-                self._normalize_position(follower.init_y),
-                self._normalize_speed(follower.speed),
-                self._normalize_angle(follower.theta),
-                self._normalize_position(self.leader.init_x),
-                self._normalize_position(self.leader.init_y),
-                self._normalize_speed(self.leader.speed)
-            ]
-            states.append(state)
+            # 临时设置follower位置
+            follower.posx = follower.init_x
+            follower.posy = follower.init_y
+            follower_state = self._get_follower_state(follower)
+            states.append(follower_state)
         
         observation = np.array(states, dtype=np.float32)
         
