@@ -876,6 +876,42 @@ print(PROJECT_ROOT)  # 项目根目录
 
 ### 最近更新 (2025-10-31)
 
+#### 🧪 测试系统完善（test.py + testing.sh）
+
+✅ **test.py功能增强**：
+- 支持命令行参数覆盖（与train.py一致）
+- 自动保存测试日志到.log文件
+- 输出格式与训练完全统一（显示每个agent的详细奖励）
+- 移除PyTorch警告，输出更干净
+
+✅ **testing.sh批量测试脚本**：
+- 简化脚本风格，与training.sh保持一致
+- 自动测试1-4个follower的所有配置
+- 每个配置使用对应的训练权重文件
+- 日志自动保存到各自的实验目录
+
+**使用方法**：
+```bash
+# 直接指定权重文件测试
+python scripts/baseline/test.py \
+  --leader_model_path YOUR_PATH/leader.pth \
+  --follower_model_path YOUR_PATH/follower.pth \
+  --n_follower 4 --test_episode 20
+
+# 或使用批量测试脚本
+./testing.sh
+```
+
+**输出示例**：
+```
+================================================================================
+  Episode    |    Leader    |  Follower0   |  Follower1   |  Follower2   |  Follower3   |    Steps     |    Status   
+================================================================================
+     0       |    637.55    |    -32.03    |    -25.72    |    -92.38    |    -30.63    |      45      | ✅ Success
+```
+
+---
+
 #### 🔄 回退到v0.2稳定版本（7维状态）
 
 🔴 **决策**：v0.3/v0.4（11维状态）效果不理想，回退到v0.2稳定版本  
