@@ -261,12 +261,12 @@ class Tester:
             all_ep_F.append(FKR)
             all_win.append(win)  # 记录胜利情况
             
-            # 格式化输出（与训练格式一致）
-            episode_str = f"{j:>8}"
+            # 格式化输出（与训练格式完全一致）
+            episode_str = f"{j:>6}"
             score_str = f"{total_rewards:>10.2f}"
-            steps_str = f"{total_steps:>9}"
+            steps_str = f"{total_steps:>8}"
             status_str = "✅ Success" if win else "❌ Failure"
-            print(f"{episode_str} |{score_str} |{steps_str} | {status_str}")
+            print(f"{episode_str}      |{score_str}    |{steps_str}       | {status_str}")
         
         # 计算成功和失败案例的统计
         success_indices = [i for i, w in enumerate(all_win) if w]

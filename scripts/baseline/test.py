@@ -162,7 +162,7 @@ def main():
     # 打印配置信息
     print_config(config)
 
-    # 打印测试表头（与训练格式保持一致的风格）
+    # 打印测试表头（与训练格式完全一致）
     print("\n" + "="*80)
     print("  Episode    |    Score    |   Steps    |    Status")
     print("="*80)
