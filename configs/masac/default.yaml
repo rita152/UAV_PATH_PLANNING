@@ -2,7 +2,7 @@ environment:
   n_leader: 1              # Leader 数量
   n_follower: 1            # Follower 数量
   render: false            # 是否渲染可视化
-  state_dim: 11            # 状态维度（方案A改进：7→11维，新增距离/方位角等关键特征）
+  state_dim: 7             # 状态维度（回退到v0.2稳定版本）
   action_dim: 2            # 动作维度（自动从环境获取）
   
 training:
