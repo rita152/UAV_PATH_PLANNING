@@ -293,11 +293,12 @@ def main():
     print("\n" + "="*60)
     print("测试结果总结")
     print("="*60)
-    print(f"任务完成率:        {results['win_rate']:.2%}")
-    print(f"平均编队保持率:    {results['average_FKR']:.2%}")
-    print(f"平均飞行时间:      {results['average_timestep']:.2f} 步")
-    print(f"平均飞行路程:      {results['average_integral_V']:.2f}")
-    print(f"平均能量损耗:      {results['average_integral_U']:.2f}")
+    print(f"任务完成率:           {results['win_rate']:.2%}")
+    print(f"平均编队率（新方法）: {results['average_FKR']:.2%}")
+    print(f"严格编队率（旧方法）: {results['average_strict_FKR']:.2%}")
+    print(f"平均飞行时间:         {results['average_timestep']:.2f} 步")
+    print(f"平均飞行路程:         {results['average_integral_V']:.2f}")
+    print(f"平均能量损耗:         {results['average_integral_U']:.2f}")
     print("="*60)
 
     # 清理日志系统并显示保存消息

@@ -195,7 +195,8 @@ class Tester:
         
         # 初始化统计变量
         win_times = 0
-        average_FKR = 0
+        average_FKR = 0  # 平均编队率（新方法：时间平均比例）
+        average_strict_FKR = 0  # 严格编队率（旧方法：全员编队比例）
         average_timestep = 0
         average_integral_V = 0
         average_integral_U = 0
@@ -203,6 +204,7 @@ class Tester:
         all_ep_U = []
         all_ep_T = []
         all_ep_F = []
+        all_ep_strict_F = []  # 记录每个episode的严格编队率
         all_win = []  # 记录每个episode的胜利情况
         
         # 测试循环
@@ -231,7 +233,8 @@ class Tester:
                 
                 # 从 info 中提取额外信息
                 win = info['win']
-                team_counter = info['team_counter']
+                team_counter = info['team_counter']  # 平均编队计数
+                strict_formation_counter = info.get('strict_formation_counter', 0)  # 严格编队计数
                 done = terminated or truncated
                 
                 # 记录胜利
@@ -264,8 +267,13 @@ class Tester:
             
             # 更新统计（修复：timestep是索引，总步数是timestep+1）
             total_steps = timestep + 1
-            FKR = team_counter / total_steps if total_steps > 0 else 0
+            
+            # 计算两种编队率
+            FKR = team_counter / total_steps if total_steps > 0 else 0  # 平均编队率（新方法）
+            strict_FKR = strict_formation_counter / total_steps if total_steps > 0 else 0  # 严格编队率（旧方法）
+            
             average_FKR += FKR
+            average_strict_FKR += strict_FKR
             average_timestep += total_steps
             average_integral_V += integral_V
             average_integral_U += integral_U
@@ -273,6 +281,7 @@ class Tester:
             all_ep_U.append(integral_U)
             all_ep_T.append(total_steps)
             all_ep_F.append(FKR)
+            all_ep_strict_F.append(strict_FKR)
             all_win.append(win)  # 记录胜利情况
 
             # 判断终止状态
@@ -335,7 +344,8 @@ class Tester:
         print("="*60)
         print(f"总体统计:")
         print(f"  - 任务完成率: {win_times / test_episode:.2%}")
-        print(f"  - 平均编队保持率: {average_FKR / test_episode:.4f} ± {np.std(all_ep_F):.4f}")
+        print(f"  - 平均编队率（新方法）: {average_FKR / test_episode:.4f} ± {np.std(all_ep_F):.4f}")
+        print(f"  - 严格编队率（旧方法）: {average_strict_FKR / test_episode:.4f} ± {np.std(all_ep_strict_F):.4f}")
         print(f"  - 平均飞行时间: {average_timestep / test_episode:.2f} ± {np.std(all_ep_T):.2f}")
         print(f"  - 平均飞行路程: {average_integral_V / test_episode:.4f} ± {np.std(all_ep_V):.4f}")
         print(f"  - 平均能量损耗: {average_integral_U / test_episode:.4f} ± {np.std(all_ep_U):.4f}")
@@ -361,8 +371,10 @@ class Tester:
         results = {
             # 总体统计
             'win_rate': win_times / test_episode,
-            'average_FKR': average_FKR / test_episode,
+            'average_FKR': average_FKR / test_episode,  # 平均编队率（新方法）
+            'average_strict_FKR': average_strict_FKR / test_episode,  # 严格编队率（旧方法）
             'std_FKR': np.std(all_ep_F),
+            'std_strict_FKR': np.std(all_ep_strict_F),
             'average_timestep': average_timestep / test_episode,
             'std_timestep': np.std(all_ep_T),
             'average_integral_V': average_integral_V / test_episode,
@@ -374,6 +386,7 @@ class Tester:
             'all_ep_U': all_ep_U,
             'all_ep_T': all_ep_T,
             'all_ep_F': all_ep_F,
+            'all_ep_strict_F': all_ep_strict_F,
             'all_win': all_win,
             # 成功/失败案例分析
             'success_stats': success_stats,

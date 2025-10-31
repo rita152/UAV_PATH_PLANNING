@@ -252,7 +252,8 @@ class RlGame(gym.Env):
             self.set_goal()
             self.set_obstacle()
         
-        self.team_counter = 0
+        self.team_counter = 0  # 平均编队计数（时间平均比例法）
+        self.strict_formation_counter = 0  # 严格编队计数（所有follower同时编队）
         self.done = False
         self.leader_state = np.zeros((self.n_leader + self.n_follower, 7))
         self.leader_α = np.zeros((self.n_leader, 1))
@@ -405,9 +406,16 @@ class RlGame(gym.Env):
             else:
                 follow_r_leader += REWARD_PARAMS['formation_distance_coef'] * dist
         
-        # 如果所有Follower都在编队中，增加计数器
+        # 编队率计算（改用时间平均比例法 - 学术界主流方法）
+        # 不再要求所有follower同时编队，而是计算编队比例
+        formation_ratio = formation_count / self.n_follower if self.n_follower > 0 else 0
+        self.team_counter += formation_ratio
+        
+        # 保留严格编队计数（用于对比分析）
         if formation_count == self.n_follower:
-            self.team_counter += 1
+            if not hasattr(self, 'strict_formation_counter'):
+                self.strict_formation_counter = 0
+            self.strict_formation_counter += 1
         
         # 总奖励
         r[i] = edge_r[i] + obstacle_r[i] + goal_r[i] + speed_r_leader + follow_r_leader
@@ -481,7 +489,8 @@ class RlGame(gym.Env):
         # 构建 info 字典
         info = {
             'win': self.leader.win,
-            'team_counter': self.team_counter,
+            'team_counter': self.team_counter,  # 平均编队计数（时间平均比例法）
+            'strict_formation_counter': self.strict_formation_counter,  # 严格编队计数
             'leader_reward': float(r[0]),
             'follower_rewards': [float(r[self.n_leader + j]) for j in range(self.n_follower)]
         }
