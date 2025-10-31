@@ -49,9 +49,9 @@ SPEED_MATCH_THRESHOLD = 1.0
 
 
 class RlGame(gym.Env):
-    def __init__(self, n,m,render=False):
-        self.leader_num = n
-        self.follower_num = m
+    def __init__(self, n_leader, n_follower, render=False):
+        self.n_leader = n_leader
+        self.n_follower = n_follower
         self.obstacle_num=1
         self.goal_num=1
         self.Render=render
@@ -84,7 +84,7 @@ class RlGame(gym.Env):
         # 每个智能体的状态维度为 7
         # Leader: [x, y, speed, angle, goal_x, goal_y, obstacle_flag]
         # Follower: [x, y, speed, angle, leader_x, leader_y, leader_speed]
-        n_agents = self.leader_num + self.follower_num
+        n_agents = self.n_leader + self.n_follower
         obs_low = np.array([[0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0]] * n_agents, dtype=np.float32)
         obs_high = np.array([[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]] * n_agents, dtype=np.float32)
         self.observation_space = spaces.Box(low=obs_low, high=obs_high, dtype=np.float32)
@@ -104,10 +104,10 @@ class RlGame(gym.Env):
         self.follower_counter=0
         self.follower_counter_1 = 0
         #又定义了一个参数，为了放在start函数里重置
-        self.follower_num_start=self.follower_num
+        self.follower_num_start=self.n_follower
         self.trajectory_x,self.trajectory_y=[],[]
-        self.follower_trajectory_x,self.follower_trajectory_y=[[] for i in range(self.follower_num)],[[] for i in range(self.follower_num)]
-        self.uav_obs_check= np.zeros((self.leader_num, 1))
+        self.follower_trajectory_x,self.follower_trajectory_y=[[] for i in range(self.n_follower)],[[] for i in range(self.n_follower)]
+        self.uav_obs_check= np.zeros((self.n_leader, 1))
 
     def set_battle_background(self):
         self.battle_background = self.GRAPHICS['background']
@@ -126,7 +126,7 @@ class RlGame(gym.Env):
         self.follower = self.__dict__
         self.follower_group = pygame.sprite.Group()
         self.follower_image = self.GRAPHICS['fighter-green']
-        for i in range(self.follower_num):
+        for i in range(self.n_follower):
             self.follower['follower'+str(i)]=player.Follower(image=self.follower_image)
             self.follower_group.add(self.follower['follower'+str(i)])
 
@@ -140,7 +140,7 @@ class RlGame(gym.Env):
     def set_follower(self):
         self.follower = self.__dict__
         self.follower_group = pygame.sprite.Group()
-        for i in range(self.follower_num):
+        for i in range(self.n_follower):
             self.follower['follower'+str(i)]=player.Follower()
             self.follower_group.add(self.follower['follower'+str(i)])
 
@@ -254,8 +254,8 @@ class RlGame(gym.Env):
         
         self.team_counter = 0
         self.done = False
-        self.leader_state = np.zeros((self.leader_num + self.follower_num, 7))
-        self.leader_α = np.zeros((self.leader_num, 1))
+        self.leader_state = np.zeros((self.n_leader + self.n_follower, 7))
+        self.leader_α = np.zeros((self.n_leader, 1))
         
         # 构建初始观测状态（使用归一化辅助函数）
         states = []
@@ -273,7 +273,7 @@ class RlGame(gym.Env):
         states.append(state)
         
         # Follower状态
-        for i in range(self.follower_num):
+        for i in range(self.n_follower):
             follower = self.follower[f'follower{i}']
             state = [
                 self._normalize_position(follower.init_x),
@@ -326,20 +326,20 @@ class RlGame(gym.Env):
             truncated: 是否因超时结束（本环境中不使用，返回 False）
             info: 附加信息字典
         """
-        dis_1_obs = np.zeros((self.leader_num, 1))
-        dis_1_goal = np.zeros((self.leader_num + self.follower_num, 1))
-        r = np.zeros((self.leader_num + self.follower_num, 1))
+        dis_1_obs = np.zeros((self.n_leader, 1))
+        dis_1_goal = np.zeros((self.n_leader + self.n_follower, 1))
+        r = np.zeros((self.n_leader + self.n_follower, 1))
         
         # 奖励分量（使用常量定义）
-        edge_r = np.zeros((self.leader_num, 1))
-        edge_r_f = np.zeros((self.follower_num, 1))
-        obstacle_r = np.zeros((self.leader_num, 1))
-        goal_r = np.zeros((self.leader_num, 1))
-        follow_r = np.zeros((self.follower_num, 1))
+        edge_r = np.zeros((self.n_leader, 1))
+        edge_r_f = np.zeros((self.n_follower, 1))
+        obstacle_r = np.zeros((self.n_leader, 1))
+        goal_r = np.zeros((self.n_leader, 1))
+        follow_r = np.zeros((self.n_follower, 1))
         
         # 计算所有Leader到Follower的距离
-        leader_follower_dist = np.zeros(self.follower_num)
-        for j in range(self.follower_num):
+        leader_follower_dist = np.zeros(self.n_follower)
+        for j in range(self.n_follower):
             leader_follower_dist[j] = math.hypot(
                 self.leader.posx - self.follower[f'follower{j}'].posx,
                 self.leader.posy - self.follower[f'follower{j}'].posy
@@ -394,7 +394,7 @@ class RlGame(gym.Env):
         speed_r_leader = 0
         formation_count = 0
         
-        for j in range(self.follower_num):
+        for j in range(self.n_follower):
             dist = leader_follower_dist[j]
             follower = self.follower[f'follower{j}']
             
@@ -406,7 +406,7 @@ class RlGame(gym.Env):
                 follow_r_leader += REWARD_PARAMS['formation_distance_coef'] * dist
         
         # 如果所有Follower都在编队中，增加计数器
-        if formation_count == self.follower_num:
+        if formation_count == self.n_follower:
             self.team_counter += 1
         
         # 总奖励
@@ -421,8 +421,8 @@ class RlGame(gym.Env):
         self.leader.update(action[i], self.Render)
         
         # 更新所有Follower
-        for j in range(self.follower_num):
-            i = self.leader_num + j
+        for j in range(self.n_follower):
+            i = self.n_leader + j
             follower = self.follower[f'follower{j}']
             
             # 障碍物距离
@@ -483,7 +483,7 @@ class RlGame(gym.Env):
             'win': self.leader.win,
             'team_counter': self.team_counter,
             'leader_reward': float(r[0]),
-            'follower_rewards': [float(r[self.leader_num + j]) for j in range(self.follower_num)]
+            'follower_rewards': [float(r[self.n_leader + j]) for j in range(self.n_follower)]
         }
         
         return observation, reward, terminated, truncated, info
@@ -520,7 +520,7 @@ class RlGame(gym.Env):
         
         # 画Follower轨迹（不同颜色区分）
         follower_colors = [C.GREEN, (255, 255, 0), (0, 255, 255), (255, 0, 255)]  # Green, Yellow, Cyan, Magenta
-        for j in range(self.follower_num):
+        for j in range(self.n_follower):
             color = follower_colors[j % len(follower_colors)]
             for i in range(1, len(self.follower_trajectory_x[j])):
                 pygame.draw.line(surface, color, 

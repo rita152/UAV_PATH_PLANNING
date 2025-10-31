@@ -46,8 +46,8 @@ def main():
     
     # 创建环境
     env = RlGame(
-        n=params['n_leader'],
-        m=params['n_follower'],
+        n_leader=params['n_leader'],
+        n_follower=params['n_follower'],
         render=params['render']
     ).unwrapped
     

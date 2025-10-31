@@ -110,8 +110,8 @@ class Trainer:
         
         # 创建环境
         self.env = RlGame(
-            n=env_cfg['n_leader'],
-            m=env_cfg['n_follower'],
+            n_leader=env_cfg['n_leader'],
+            n_follower=env_cfg['n_follower'],
             render=train_cfg.get('render', False)
         ).unwrapped
         

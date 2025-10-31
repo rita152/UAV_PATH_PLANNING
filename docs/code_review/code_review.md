@@ -1284,7 +1284,7 @@ class Logger:
    from gymnasium.vector import AsyncVectorEnv
    
    envs = AsyncVectorEnv([
-       lambda: RlGame(n=1, m=1) for _ in range(num_envs)
+       lambda: RlGame(n_leader=1, n_follower=1) for _ in range(num_envs)
    ])
    ```
 
