@@ -353,10 +353,10 @@ class Tester:
             print(f"  - 平均编队保持率: {failure_stats['avg_FKR']:.4f}")
         
         print("="*60)
-        
-        # 关闭环境
-        self.env.close()
-        
+
+        # 注意：不调用env.close()，因为它会调用quit()导致程序退出
+        # 环境会在程序结束时自动清理
+
         # 返回详细结果（添加标准差和成功/失败分析）
         results = {
             # 总体统计
@@ -379,6 +379,6 @@ class Tester:
             'success_stats': success_stats,
             'failure_stats': failure_stats,
         }
-        
+
         return results
 
