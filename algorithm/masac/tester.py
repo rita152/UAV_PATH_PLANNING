@@ -206,13 +206,17 @@ class Tester:
             # 为每个episode设置不同的种子（测试种子空间）
             episode_seed = get_episode_seed(self.base_seed, j, mode='test')
             set_global_seed(episode_seed, deterministic=False)
-            
+
             # 重置环境（符合 Gymnasium 标准）
             state, reset_info = self.env.reset()
             total_rewards = 0
             integral_V = 0
             integral_U = 0
             v, v1 = [], []
+
+            # 为每个智能体单独统计奖励
+            reward_leaders = [0.0] * self.n_leader
+            reward_followers = [0.0] * self.n_follower
             
             for timestep in range(ep_len):
                 # 选择动作（每个智能体使用自己的权重）
@@ -236,7 +240,13 @@ class Tester:
                 integral_V += state[0][2]
                 integral_U += abs(action[0]).sum()
                 total_rewards += reward.mean()
-                
+
+                # 分别累积每个智能体的奖励
+                for i in range(self.n_leader):
+                    reward_leaders[i] += float(reward[i])
+                for k in range(self.n_follower):
+                    reward_followers[k] += float(reward[self.n_leader + k])
+
                 # 更新状态
                 state = new_state
                 
@@ -260,13 +270,36 @@ class Tester:
             all_ep_T.append(total_steps)
             all_ep_F.append(FKR)
             all_win.append(win)  # 记录胜利情况
-            
+
+            # 判断终止状态
+            if done:
+                if win:
+                    status = "✅ Success"
+                    status_color = "\033[92m"  # 绿色
+                else:
+                    status = "❌ Failure"
+                    status_color = "\033[91m"  # 红色
+            else:
+                status = "⏱️  Timeout"
+                status_color = "\033[93m"  # 黄色
+            reset_color = "\033[0m"
+
             # 格式化输出（与训练格式完全一致）
-            episode_str = f"{j:>6}"
-            score_str = f"{total_rewards:>10.2f}"
-            steps_str = f"{total_steps:>8}"
-            status_str = "✅ Success" if win else "❌ Failure"
-            print(f"{episode_str}      |{score_str}    |{steps_str}       | {status_str}")
+            output_parts = [f"{j:^12d}"]
+
+            # Leader奖励
+            for i in range(self.n_leader):
+                output_parts.append(f"{reward_leaders[i]:^12.2f}")
+
+            # Follower奖励
+            for k in range(self.n_follower):
+                output_parts.append(f"{reward_followers[k]:^12.2f}")
+
+            # 步数和状态
+            output_parts.append(f"{total_steps:^12d}")
+            output_parts.append(f"{status_color}{status:^12}{reset_color}")
+
+            print(" | ".join(output_parts))
         
         # 计算成功和失败案例的统计
         success_indices = [i for i, w in enumerate(all_win) if w]

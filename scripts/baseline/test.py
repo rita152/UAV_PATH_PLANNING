@@ -164,7 +164,18 @@ def main():
 
     # 打印测试表头（与训练格式完全一致）
     print("\n" + "="*80)
-    print("  Episode    |    Score    |   Steps    |    Status")
+    header_parts = ["Episode"]
+    # Leader列（只有1个leader，直接使用"Leader"）
+    header_parts.append("Leader")
+    # Follower列（根据数量添加）
+    for j in range(params['n_follower']):
+        if params['n_follower'] == 1:
+            header_parts.append("Follower")
+        else:
+            header_parts.append(f"Follower{j}")
+    header_parts.append("Steps")
+    header_parts.append("Status")
+    print(" | ".join([f"{part:^12}" for part in header_parts]))
     print("="*80)
 
     print('SAC测试中...')
