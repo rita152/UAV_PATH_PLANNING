@@ -4,8 +4,12 @@ MASAC 测试器
 """
 import torch
 import numpy as np
+import warnings
 from utils import get_model_path, set_global_seed, get_episode_seed, print_seed_info
 from .agent import Actor
+
+# 过滤torch.load的FutureWarning，因为我们的权重文件是可信的
+warnings.filterwarnings("ignore", message=".*torch.load.*weights_only.*", category=FutureWarning)
 
 
 class Tester:
