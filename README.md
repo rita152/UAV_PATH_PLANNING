@@ -150,6 +150,10 @@ network:
 UAV_PATH_PLANNING/
 ├── README.md                 # 项目文档
 ├── requirements.txt          # 项目依赖
+├── docs/                    # 📚 技术文档目录
+│   ├── development_log.md  # 🆕 开发日志（完整改进历程）
+│   ├── state_design_analysis.md  # 状态设计深度分析
+│   └── code_review/        # 代码审查报告
 ├── train.py                 # 🚀 极简训练脚本（展示简化API）
 ├── .gitignore               # Git忽略规则
 ├── .cursor/                 # Cursor IDE配置
@@ -870,6 +874,61 @@ print(PROJECT_ROOT)  # 项目根目录
 
 ### 最近更新 (2025-10-31)
 
+#### 🔧 关键修复：奖励参数平衡问题（解决正值奖励死锁）
+
+🔴 **发现严重BUG**：方案A实施后4F配置TIMEOUT率飙升至59.3%（原17.6%）  
+🔍 **根因分析**：Follower出现持续正值奖励，导致"原地编队"死锁策略  
+✅ **已修复**：调整奖励参数平衡，确保所有情况下follower奖励为负值  
+
+**问题详情**：
+```python
+原奖励参数（有BUG）：
+- speed_match_reward: +1.0
+- time_step_penalty: -0.2
+
+导致问题：
+编队内+速度匹配时: +1.0 - 0.2 = +0.8 (正值！🔴)
+→ Follower学会"原地编队"获得持续正奖励
+→ Leader感知到follower（新增avg_follower_distance），等待编队
+→ 双方死锁，都不前进
+→ TIMEOUT率爆发至59.3%
+```
+
+**修复方案**：
+```python
+修复后奖励参数：
+- speed_match_reward: 0.1    # 1.0 → 0.1 (降低90%)
+- time_step_penalty: -0.5    # -0.2 → -0.5 (增强150%)
+
+修复效果：
+编队内+速度匹配: +0.1 - 0.5 = -0.4 (负值！✅)
+编队内无匹配: 0 - 0.5 = -0.5 (负值！✅)
+编队外: -0.005×距离 - 0.5 = 负值 (✅)
+
+→ 所有情况下follower奖励都是负值
+→ Follower必须跟随Leader前进减少惩罚
+→ 不会陷入"原地编队"死锁
+→ 问题根本解决
+```
+
+**技术深度分析**：
+- 🔴 **奖励设计陷阱**：增加新状态特征后，必须重新审视奖励平衡
+- 🔴 **死锁机制**：Leader感知follower + follower正奖励 = 双向死锁
+- ✅ **修复原则**：确保除了到达目标外，任何状态都应该有"前进"的压力
+
+**预期修复效果**：
+- TIMEOUT率：59.3% → **<10%** (恢复正常)
+- Follower奖励：全部负值，无死锁
+- Leader-Follower协调：正常跟随，共同前进
+
+**验证测试**：
+```bash
+conda activate UAV_PATH_PLANNING
+python scripts/baseline/train.py --n_follower 4 --ep_max 200
+```
+
+---
+
 #### ✅ 方案A实施：状态变量设计改进（信息密度提升173%）
 
 ✅ **已实施方案A**：最小改进方案，添加4个P0级关键特征  
@@ -935,7 +994,8 @@ python scripts/baseline/train.py --n_follower 4 --state_dim 11 --ep_max 200
 - 当前信息密度82%，接近OpenAI标准（100%）和DeepMind标准（90%）
 - 下一步：方案B将进一步提升到87%（15维）
 
-**技术深度分析**：详见 `docs/state_design_analysis.md`
+**技术深度分析**：详见 `docs/state_design_analysis.md`  
+**完整开发历程**：详见 `docs/development_log.md` 📝
 
 ---
 

@@ -32,7 +32,7 @@ DISTANCE_THRESHOLD = {
     'boundary_margin': 50    # 边界安全边距
 }
 
-# 奖励参数（方案A优化：针对4_follower的TIMEOUT问题）
+# 奖励参数（方案A优化+修复：解决正值奖励死锁问题）
 REWARD_PARAMS = {
     'collision_penalty': -500.0,      # 碰撞惩罚
     'warning_penalty': -2.0,          # 警告惩罚（接近障碍）
@@ -40,8 +40,8 @@ REWARD_PARAMS = {
     'goal_reward': 1000.0,            # 到达目标奖励
     'goal_distance_coef': -0.02,      # 🎯 目标距离惩罚系数（-0.005→-0.02，4倍增强，引导快速接近目标）
     'formation_distance_coef': -0.005,# 编队距离惩罚系数（-0.001→-0.005，5倍增强，促进编队形成）
-    'speed_match_reward': 1.0,        # 速度匹配奖励
-    'time_step_penalty': -0.2         # ⭐ 时间步惩罚（-1.0→-0.2，降低80%，减少过度惩罚）
+    'speed_match_reward': 0.1,        # 🔧 速度匹配奖励（1.0→0.1，降低90%，防止正值奖励死锁）
+    'time_step_penalty': -0.5         # 🔧 时间步惩罚（-0.2→-0.5，增强150%，确保follower总奖励为负）
 }
 
 # 速度匹配阈值
