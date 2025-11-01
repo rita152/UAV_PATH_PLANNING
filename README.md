@@ -158,6 +158,9 @@ UAV_PATH_PLANNING/
 │   ├── gnn_implementation_roadmap.md # 🆕 GNN实施路线图
 │   └── code_review/        # 代码审查报告
 ├── project_status_outline.md  # 🆕 项目现状分析PPT大纲（设计问题与改进方案）
+├── visualize_formation_rate.py  # 🆕 编队率可视化脚本（生成对比图表）
+├── formation_rate_comparison.png  # 🆕 任务完成率vs编队率对比图（双Y轴）
+├── formation_rate_bar_comparison.png  # 🆕 柱状图对比
 ├── train.py                 # 🚀 极简训练脚本（展示简化API）
 ├── .gitignore               # Git忽略规则
 ├── .cursor/                 # Cursor IDE配置
