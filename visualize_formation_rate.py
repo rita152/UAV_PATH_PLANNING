@@ -87,11 +87,11 @@ for i, (x, y) in enumerate(zip(follower_counts, formation_keep_rates)):
 plt.title('Task Completion Rate vs Formation Keep Rate\n(1-4 Follower Configuration Comparison)', 
           fontsize=16, fontweight='bold', pad=25)
 
-# Merge legends - place in center right to avoid overlap with curves
+# Merge legends - place in upper right (original position)
 lines1, labels1 = ax1.get_legend_handles_labels()
 lines2, labels2 = ax2.get_legend_handles_labels()
 ax1.legend(lines1 + lines2, labels1 + labels2, 
-          loc='center right', fontsize=11, 
+          loc='upper right', fontsize=11, 
           framealpha=0.95, edgecolor='black', 
           fancybox=True, shadow=True)
 
