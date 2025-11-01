@@ -153,9 +153,11 @@ UAV_PATH_PLANNING/
 ├── docs/                    # 📚 技术文档目录
 │   ├── development_log.md  # 🆕 开发日志（完整改进历程）
 │   ├── state_design_analysis.md  # 状态设计深度分析
+│   ├── formation_rate_analysis.md  # 🆕 编队率低问题深度分析
 │   ├── gnn_transformer_research.md  # 🆕 GNN-Transformer架构调研
 │   ├── gnn_implementation_roadmap.md # 🆕 GNN实施路线图
 │   └── code_review/        # 代码审查报告
+├── project_status_outline.md  # 🆕 项目现状分析PPT大纲（设计问题与改进方案）
 ├── train.py                 # 🚀 极简训练脚本（展示简化API）
 ├── .gitignore               # Git忽略规则
 ├── .cursor/                 # Cursor IDE配置
