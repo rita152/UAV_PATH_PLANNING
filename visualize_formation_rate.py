@@ -102,12 +102,12 @@ ax1.set_axisbelow(True)
 ax1.set_xticks(follower_counts)
 ax1.set_xticklabels([f'{n}F' for n in follower_counts])
 
-# Add performance contradiction annotation - moved to avoid overlap with legend
-ax1.text(0.02, 0.85, 
+# Add performance contradiction annotation - moved to bottom left to avoid overlap with curves
+ax1.text(0.02, 0.18, 
          'Performance Paradox:\nTask completion: 92%\nFormation rate: only 1%',
          transform=ax1.transAxes,
          fontsize=10,
-         verticalalignment='top',
+         verticalalignment='bottom',
          bbox=dict(boxstyle='round,pad=0.5', facecolor='wheat', alpha=0.85),
          color='#e74c3c',
          fontweight='bold')
